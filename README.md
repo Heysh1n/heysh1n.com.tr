@@ -1,43 +1,77 @@
-# Astro Starter Kit: Minimal
+# heysh1n.com.tr Web Hub
 
-```sh
-npm create astro@latest -- --template minimal
-```
+Monorepo for the public portfolio frontend and the Payload CMS backend that powers content, admin workflows, and SFCP license/update APIs.
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
-
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
+## Structure
 
 ```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
+.
+├─ frontend/          # Astro public site
+├─ backend/           # Payload CMS v3 + Next.js App Router + PostgreSQL
+├─ docs/              # Setup and architecture notes
+├─ package.json       # Workspace helper scripts
+└─ README.md
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+## Services
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+- `frontend/`: Astro site on `http://localhost:4321`. It consumes Payload REST endpoints for projects and technologies.
+- `backend/`: Payload admin and API on `http://localhost:3000`. It stores portfolio content, manages access keys, validates SFCP licenses, and serves the SFCP update manifest.
 
-Any static assets, like images, can be placed in the `public/` directory.
+## Environment
 
-## 🧞 Commands
+Create the backend env file from the example:
 
-All commands are run from the root of the project, from a terminal:
+```sh
+cp backend/.env.example backend/.env
+```
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+Required backend variables:
 
-## 👀 Want to learn more?
+```env
+DATABASE_URI=postgresql://postgres:postgres@127.0.0.1:5432/payload_cms
+PAYLOAD_SECRET=replace-with-a-long-random-secret
+SFCP_LATEST_VERSION=0.0.0
+SFCP_DOWNLOAD_URL=
+SFCP_SHA256=
+```
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+## Commands
+
+Install dependencies for both workspaces:
+
+```sh
+npm install
+```
+
+Run the public site:
+
+```sh
+npm run dev:frontend
+```
+
+Run Payload CMS and API:
+
+```sh
+npm run dev:backend
+```
+
+Generate Payload types after collection changes:
+
+```sh
+npm run generate:types
+```
+
+Build both workspaces:
+
+```sh
+npm run build
+```
+
+## SFCP API
+
+- `POST http://localhost:3000/api/v1/validate`
+- `POST http://localhost:3000/api/v1/licenses/generate`
+- `GET http://localhost:3000/api/sfcp/update.json`
+
+See [docs/architecture.md](./docs/architecture.md) and [docs/payload-setup.md](./docs/payload-setup.md) for details.

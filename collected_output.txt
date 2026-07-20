@@ -1,0 +1,699 @@
+══════════════
+📋 heysh1n.com.tr [pick]
+📅 01.07.2026 13:02:53
+📄 Files: 6
+══════════════
+
+┌────────────
+│ 🗂️  STRUCTURE
+├────────────
+│ 📦 heysh1n.com.tr/
+│ └── 📂 frontend/
+│     └── 📂 src/
+│         ├── 📂 components/
+│         │   ├── 📄 HeroBlock.astro
+│         │   ├── 📄 MusicWidget.astro
+│         │   ├── 📄 MusicWidgetIsland.tsx
+│         │   ├── 📄 ProjectsGrid.astro
+│         │   └── 📄 StackBlock.astro
+│         └── 📂 layouts/
+│             └── 📄 Layout.astro
+└────────────
+
+┌─── 📄 [1/6] frontend/src/components/HeroBlock.astro
+---
+interface Props {
+  name: string
+  role: string
+}
+
+const { name, role } = Astro.props
+---
+
+<button
+  type="button"
+  data-modal-target="modal-hero"
+  aria-controls="modal-hero"
+  aria-expanded="false"
+  aria-label={`Open ${name} identity details`}
+  class="bento-card group col-span-12 md:col-span-8 rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 text-left opacity-0 translate-y-8 backdrop-blur-md transition-all hover:scale-[1.02] hover:border-neutral-600 hover:shadow-[0_0_32px_rgba(88,28,135,0.18)] focus:outline-none focus:ring-2 focus:ring-purple-900/50"
+>
+  <div class="flex h-full items-end justify-between gap-4">
+    <div>
+      <p class="text-xs font-medium uppercase tracking-[0.32em] text-neutral-500">Workspace</p>
+      <h1 class="mt-3 text-3xl font-bold tracking-tight text-white sm:text-5xl group-hover:animate-pulse group-hover:text-purple-400 transition-colors drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]">{name}</h1>
+    </div>
+    <p class="text-right text-sm font-medium text-neutral-300 sm:text-base">{role}</p>
+  </div>
+</button>
+└────────────────────────────────────────
+
+┌─── 📄 [2/6] frontend/src/components/MusicWidget.astro
+---
+interface Props {
+  lastFmUser: string
+}
+
+const { lastFmUser } = Astro.props
+const normalizedLastFmUser = lastFmUser.trim()
+const title = 'Spotify / Music'
+const description = normalizedLastFmUser
+  ? `Last.fm signal from ${normalizedLastFmUser}.`
+  : 'Low-volume focus loop placeholder.'
+---
+
+<button
+  type="button"
+  data-modal-target="modal-music"
+  aria-controls="modal-music"
+  aria-expanded="false"
+  aria-label="Open Spotify and music widget details"
+  class="bento-card group col-span-12 md:col-span-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 text-left opacity-0 translate-y-8 backdrop-blur-md transition-all hover:scale-[1.02] hover:border-neutral-600 hover:shadow-[0_0_28px_rgba(127,29,29,0.16)] focus:outline-none focus:ring-2 focus:ring-red-950/60"
+>
+  <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">Signal</p>
+  <h2 class="mt-8 text-xl font-semibold tracking-tight text-white">{title}</h2>
+  <p class="mt-3 text-sm leading-6 text-neutral-400">{description}</p>
+</button>
+└────────────────────────────────────────
+
+┌─── 📄 [3/6] frontend/src/components/MusicWidgetIsland.tsx
+import { useEffect, useMemo, useRef, useState } from 'react'
+
+const LASTFM_ENDPOINT = 'https://ws.audioscrobbler.com/2.0/'
+const RECENT_TRACK_POLL_MS = 30_000
+
+interface MusicWidgetIslandProps {
+  username?: string
+  apiKey?: string
+}
+
+interface LastFmTextValue {
+  '#text'?: string
+  name?: string
+}
+
+interface LastFmImage {
+  '#text'?: string
+  size?: string
+}
+
+interface LastFmTrack {
+  '@attr'?: {
+    nowplaying?: string
+  }
+  album?: LastFmTextValue | string
+  artist?: LastFmTextValue | string
+  image?: LastFmImage[]
+  name?: string
+  url?: string
+}
+
+interface LastFmRecentTracks {
+  track?: LastFmTrack | LastFmTrack[]
+}
+
+interface LastFmTopTracks {
+  track?: LastFmTrack | LastFmTrack[]
+}
+
+interface LastFmResponse {
+  error?: number
+  message?: string
+  recenttracks?: LastFmRecentTracks
+  toptracks?: LastFmTopTracks
+}
+
+type PlaybackState = 'now-playing' | 'favorite'
+
+interface NormalizedTrack {
+  albumArt?: string
+  artist?: string
+  name: string
+  playbackState: PlaybackState
+  url?: string
+}
+
+interface MarqueeTextProps {
+  as?: 'h3' | 'p'
+  children: string
+  className?: string
+  id?: string
+}
+
+const normalizeText = (value?: string | null): string | undefined => {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
+}
+
+const readTextValue = (value?: LastFmTextValue | string): string | undefined => {
+  if (typeof value === 'string') {
+    return normalizeText(value)
+  }
+
+  return normalizeText(value?.['#text']) ?? normalizeText(value?.name)
+}
+
+const ensureArray = <T,>(value?: T | T[]): T[] => {
+  if (!value) {
+    return []
+  }
+
+  return Array.isArray(value) ? value : [value]
+}
+
+const getLargestImage = (images?: LastFmImage[]): string | undefined => {
+  if (!images) {
+    return undefined
+  }
+
+  return [...images]
+    .reverse()
+    .map((image) => normalizeText(image['#text']))
+    .find(Boolean)
+}
+
+const normalizeTrack = (
+  track: LastFmTrack,
+  playbackState: PlaybackState,
+): NormalizedTrack | null => {
+  const name = normalizeText(track.name)
+
+  if (!name) {
+    return null
+  }
+
+  return {
+    albumArt: getLargestImage(track.image),
+    artist: readTextValue(track.artist),
+    name,
+    playbackState,
+    url: normalizeText(track.url),
+  }
+}
+
+const createLastFmUrl = (
+  method: 'user.getRecentTracks' | 'user.getTopTracks',
+  username: string,
+  apiKey: string,
+): string => {
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    format: 'json',
+    limit: method === 'user.getRecentTracks' ? '1' : '5',
+    method,
+    user: username,
+  })
+
+  if (method === 'user.getTopTracks') {
+    params.set('period', 'overall')
+  }
+
+  return `${LASTFM_ENDPOINT}?${params.toString()}`
+}
+
+const getLatestTrack = (payload: LastFmResponse): LastFmTrack | undefined =>
+  ensureArray(payload.recenttracks?.track)[0]
+
+const getFavoriteTrack = (payload: LastFmResponse): LastFmTrack | undefined =>
+  ensureArray(payload.toptracks?.track)[0]
+
+const isNowPlaying = (track?: LastFmTrack): boolean =>
+  track?.['@attr']?.nowplaying === 'true'
+
+function MarqueeText({
+  as: Component = 'p',
+  children,
+  className = '',
+  id,
+}: MarqueeTextProps) {
+  const containerRef = useRef<HTMLElement | null>(null)
+  const contentRef = useRef<HTMLSpanElement | null>(null)
+  const [isOverflowing, setIsOverflowing] = useState(false)
+  const setContainerRef = (node: HTMLElement | null) => {
+    containerRef.current = node
+  }
+
+  useEffect(() => {
+    const container = containerRef.current
+    const content = contentRef.current
+
+    if (!container || !content) {
+      return
+    }
+
+    const measure = () => {
+      setIsOverflowing(content.scrollWidth > container.clientWidth)
+    }
+
+    measure()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure)
+      return () => window.removeEventListener('resize', measure)
+    }
+
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    observer.observe(content)
+
+    return () => observer.disconnect()
+  }, [children])
+
+  const content = (
+    <>
+      <span
+        className="music-marquee-track inline-flex min-w-full"
+        data-overflow={isOverflowing ? 'true' : 'false'}
+      >
+        <span ref={contentRef} className="min-w-0 shrink-0 truncate pr-8">
+          {children}
+        </span>
+        {isOverflowing && (
+          <span aria-hidden="true" className="shrink-0 pr-8">
+            {children}
+          </span>
+        )}
+      </span>
+    </>
+  )
+
+  const sharedClassName = `music-marquee block min-w-0 overflow-hidden whitespace-nowrap ${className}`
+
+  if (Component === 'h3') {
+    return (
+      <h3 id={id} ref={setContainerRef} className={sharedClassName} title={children}>
+        {content}
+      </h3>
+    )
+  }
+
+  return (
+    <p id={id} ref={setContainerRef} className={sharedClassName} title={children}>
+      {content}
+    </p>
+  )
+}
+
+function EqualizerIcon() {
+  return (
+    <span
+      aria-hidden="true"
+      className="music-equalizer flex h-4 w-4 items-end gap-0.5 text-emerald-300"
+    >
+      <span className="h-2 w-0.5 rounded-full bg-current" />
+      <span className="h-3.5 w-0.5 rounded-full bg-current" />
+      <span className="h-2.5 w-0.5 rounded-full bg-current" />
+    </span>
+  )
+}
+
+function MusicSkeleton() {
+  return (
+    <section
+      aria-label="Loading music widget"
+      className="rounded-lg border border-neutral-800 bg-black/40 p-4"
+    >
+      <div className="flex items-center gap-4">
+        <div className="h-16 w-16 shrink-0 animate-pulse rounded-md bg-neutral-800" />
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="h-3 w-28 animate-pulse rounded-full bg-neutral-800" />
+          <div className="h-4 w-4/5 animate-pulse rounded-full bg-neutral-700" />
+          <div className="h-3 w-2/5 animate-pulse rounded-full bg-neutral-800" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+export default function MusicWidgetIsland({
+  username,
+  apiKey,
+}: MusicWidgetIslandProps) {
+  const normalizedUsername =
+    normalizeText(username) ?? normalizeText(import.meta.env.PUBLIC_LASTFM_USER)
+  const normalizedApiKey =
+    normalizeText(apiKey) ?? normalizeText(import.meta.env.PUBLIC_LASTFM_API_KEY)
+  const hasConfig = Boolean(normalizedUsername && normalizedApiKey)
+  const [favoriteTrack, setFavoriteTrack] = useState<NormalizedTrack | null>(null)
+  const [recentTrack, setRecentTrack] = useState<NormalizedTrack | null>(null)
+  const [hasLoadedFavorite, setHasLoadedFavorite] = useState(false)
+  const [hasLoadedRecent, setHasLoadedRecent] = useState(false)
+  const [isHidden, setIsHidden] = useState(!hasConfig)
+
+  useEffect(() => {
+    if (!hasConfig || !normalizedUsername || !normalizedApiKey) {
+      setIsHidden(true)
+      return
+    }
+
+    const controller = new AbortController()
+    let pollTimer: ReturnType<typeof window.setInterval> | undefined
+    let isPollingRecent = false
+
+    const hideOnError = (error: unknown) => {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+
+      console.warn(error instanceof Error ? error.message : String(error))
+      setIsHidden(true)
+
+      if (pollTimer) {
+        window.clearInterval(pollTimer)
+      }
+    }
+
+    const fetchLastFm = async (url: string): Promise<LastFmResponse> => {
+      const response = await fetch(url, { signal: controller.signal })
+
+      if (!response.ok) {
+        throw new Error(`Last.fm responded with ${response.status}`)
+      }
+
+      const payload = (await response.json()) as LastFmResponse
+
+      if (payload.error) {
+        throw new Error(payload.message ?? `Last.fm error ${payload.error}`)
+      }
+
+      return payload
+    }
+
+    const fetchFavoriteTrack = async (): Promise<void> => {
+      try {
+        const payload = await fetchLastFm(
+          createLastFmUrl('user.getTopTracks', normalizedUsername, normalizedApiKey),
+        )
+        const track = getFavoriteTrack(payload)
+
+        setFavoriteTrack(track ? normalizeTrack(track, 'favorite') : null)
+        setHasLoadedFavorite(true)
+      } catch (error) {
+        hideOnError(error)
+      }
+    }
+
+    const fetchRecentTrack = async (): Promise<void> => {
+      if (isPollingRecent) {
+        return
+      }
+
+      isPollingRecent = true
+
+      try {
+        const payload = await fetchLastFm(
+          createLastFmUrl('user.getRecentTracks', normalizedUsername, normalizedApiKey),
+        )
+        const latestTrack = getLatestTrack(payload)
+
+        setRecentTrack(
+          isNowPlaying(latestTrack) && latestTrack
+            ? normalizeTrack(latestTrack, 'now-playing')
+            : null,
+        )
+        setHasLoadedRecent(true)
+      } catch (error) {
+        hideOnError(error)
+      } finally {
+        isPollingRecent = false
+      }
+    }
+
+    setIsHidden(false)
+    setFavoriteTrack(null)
+    setRecentTrack(null)
+    setHasLoadedFavorite(false)
+    setHasLoadedRecent(false)
+
+    void fetchFavoriteTrack()
+    void fetchRecentTrack()
+
+    pollTimer = window.setInterval(() => {
+      void fetchRecentTrack()
+    }, RECENT_TRACK_POLL_MS)
+
+    return () => {
+      controller.abort()
+
+      if (pollTimer) {
+        window.clearInterval(pollTimer)
+      }
+    }
+  }, [hasConfig, normalizedApiKey, normalizedUsername])
+
+  const displayTrack = useMemo(
+    () => recentTrack ?? favoriteTrack,
+    [favoriteTrack, recentTrack],
+  )
+
+  const isLoading =
+    !isHidden &&
+    (!hasLoadedRecent || (!recentTrack && !hasLoadedFavorite))
+
+  if (!hasConfig || isHidden) {
+    return null
+  }
+
+  if (isLoading) {
+    return <MusicSkeleton />
+  }
+
+  if (!displayTrack) {
+    return null
+  }
+
+  const isLive = displayTrack.playbackState === 'now-playing'
+  const statusLabel = isLive ? 'Now Playing' : 'Favorite Track'
+  const badgeLabel = isLive ? 'Live' : 'On Repeat'
+
+  return (
+    <section
+      aria-labelledby="music-widget-title"
+      className={`rounded-lg border bg-black/45 p-4 transition-opacity ${
+        isLive
+          ? 'border-emerald-500/30 shadow-[0_0_28px_rgba(16,185,129,0.12)]'
+          : 'border-neutral-800 opacity-80'
+      }`}
+    >
+      <style>{`
+        @keyframes music-marquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+
+        @keyframes music-equalizer {
+          0%, 100% { transform: scaleY(0.45); }
+          50% { transform: scaleY(1); }
+        }
+
+        .music-marquee:hover .music-marquee-track[data-overflow="true"] {
+          animation: music-marquee 8s linear infinite;
+          overflow: visible;
+        }
+
+        .music-equalizer span {
+          animation: music-equalizer 0.9s ease-in-out infinite;
+          transform-origin: bottom;
+        }
+
+        .music-equalizer span:nth-child(2) {
+          animation-delay: 0.15s;
+        }
+
+        .music-equalizer span:nth-child(3) {
+          animation-delay: 0.3s;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .music-marquee:hover .music-marquee-track[data-overflow="true"],
+          .music-equalizer span {
+            animation: none;
+          }
+        }
+      `}</style>
+
+      <div className="flex items-center gap-4">
+        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-neutral-800 bg-neutral-950">
+          {displayTrack.albumArt ? (
+            <img
+              src={displayTrack.albumArt}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_30%_20%,rgba(16,185,129,0.28),transparent_34%),linear-gradient(135deg,rgba(39,39,42,0.95),rgba(10,10,10,0.95))] text-xl font-semibold text-neutral-500">
+              {displayTrack.name[0]?.toUpperCase()}
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex items-center gap-2">
+            {isLive ? (
+              <EqualizerIcon />
+            ) : (
+              <span className="h-2 w-2 rounded-full bg-neutral-500" aria-hidden="true" />
+            )}
+            <p className="text-xs font-medium uppercase text-neutral-500">
+              {statusLabel}
+            </p>
+            <span
+              className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase ${
+                isLive
+                  ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
+                  : 'border-neutral-700 bg-neutral-800/70 text-neutral-300'
+              }`}
+            >
+              {badgeLabel}
+            </span>
+          </div>
+
+          <MarqueeText
+            as="h3"
+            id="music-widget-title"
+            className="text-base font-semibold text-white"
+          >
+            {displayTrack.name}
+          </MarqueeText>
+
+          {displayTrack.artist && (
+            <MarqueeText className="mt-1 text-sm text-neutral-400">
+              {displayTrack.artist}
+            </MarqueeText>
+          )}
+
+          {displayTrack.url && (
+            <a
+              href={displayTrack.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex text-xs text-purple-300 underline decoration-purple-500/60 underline-offset-4 transition-colors hover:text-purple-100"
+            >
+              Open on Last.fm
+            </a>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+└────────────────────────────────────────
+
+┌─── 📄 [4/6] frontend/src/components/ProjectsGrid.astro
+---
+type ProjectStatus = 'active' | 'in_progress' | 'archived'
+type ProjectTone = 'purple' | 'red'
+
+interface ProjectCard {
+  description: string
+  dialogId: string
+  status?: ProjectStatus | null
+  title: string
+  tone: ProjectTone
+}
+
+interface Props {
+  projectCards: ProjectCard[]
+  statusLabels: Record<ProjectStatus, string>
+}
+
+const { projectCards, statusLabels } = Astro.props
+
+const projectButtonClass = (tone: ProjectTone) =>
+  [
+    'bento-card group col-span-6 md:col-span-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 text-left opacity-0 translate-y-8 backdrop-blur-md transition-all hover:scale-[1.02] hover:border-neutral-600 focus:outline-none',
+    tone === 'purple'
+      ? 'hover:shadow-[0_0_28px_rgba(88,28,135,0.18)] focus:ring-2 focus:ring-purple-900/50'
+      : 'hover:shadow-[0_0_28px_rgba(127,29,29,0.16)] focus:ring-2 focus:ring-red-950/60',
+  ].join(' ')
+---
+
+{projectCards.map((project) => (
+  <button
+    type="button"
+    data-modal-target={project.dialogId}
+    aria-controls={project.dialogId}
+    aria-expanded="false"
+    aria-label={`Open ${project.title} project details`}
+    class={projectButtonClass(project.tone)}
+  >
+    <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+      {project.status ? statusLabels[project.status] : 'Project'}
+    </p>
+    <h2 class="mt-8 text-xl font-semibold tracking-tight text-white">{project.title}</h2>
+    <p class="mt-3 text-sm leading-6 text-neutral-400">{project.description}</p>
+  </button>
+))}
+└────────────────────────────────────────
+
+┌─── 📄 [5/6] frontend/src/components/StackBlock.astro
+---
+interface Props {
+  stackSummary: string
+}
+
+const { stackSummary } = Astro.props
+---
+
+<button
+  type="button"
+  data-modal-target="modal-stack"
+  aria-controls="modal-stack"
+  aria-expanded="false"
+  aria-label="Open main backend stack details"
+  class="bento-card group col-span-12 md:col-span-8 rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 text-left opacity-0 translate-y-8 backdrop-blur-md transition-all hover:scale-[1.02] hover:border-neutral-600 hover:shadow-[0_0_32px_rgba(88,28,135,0.18)] focus:outline-none focus:ring-2 focus:ring-purple-900/50"
+>
+  <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">Main Stack</p>
+  <h2 class="mt-8 text-2xl font-semibold tracking-tight text-white">{stackSummary}</h2>
+  <p class="mt-3 text-sm leading-6 text-neutral-400">Shell-first backend workflow.</p>
+</button>
+└────────────────────────────────────────
+
+┌─── 📄 [6/6] frontend/src/layouts/Layout.astro
+---
+import '../styles/global.css';
+
+const title = 'Heysh1n | Workspace';
+const description =
+  'Dark bento workspace for Heysh1n, a backend engineer focused on systems tooling, Linux workflows, networking, and hardware-backed automation.';
+const siteUrl = 'https://heysh1n.com.tr/';
+const imageUrl = `${siteUrl}shell.jpg`;
+---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href={siteUrl} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="preload" as="image" href="/shell.jpg" type="image/jpeg" fetchpriority="high" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Heysh1n" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={siteUrl} />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:alt" content="Dark cyberpunk shell workspace background." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
+  </head>
+  <body class="relative h-auto w-screen overflow-y-auto bg-neutral-950 text-neutral-400 antialiased flex items-center justify-center md:h-screen md:w-screen md:overflow-hidden">
+    <div aria-hidden="true" class="pointer-events-none bg-[url('/shell.jpg')] bg-cover bg-center bg-no-repeat fixed inset-0 -z-20 opacity-10 mix-blend-overlay"></div>
+    <div aria-hidden="true" class="pointer-events-none fixed inset-0 z-50 h-full w-full bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20"></div>
+    <div aria-hidden="true" class="pointer-events-none fixed inset-0 z-40 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(10,10,10,0.8)_100%)]"></div>
+    <slot />
+  </body>
+</html>
+└────────────────────────────────────────
+
+═════
+✅ End
+═════

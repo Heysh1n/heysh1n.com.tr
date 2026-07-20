@@ -1,0 +1,25 @@
+---
+interface Props {
+  lastFmUser: string
+}
+
+const { lastFmUser } = Astro.props
+const normalizedLastFmUser = lastFmUser.trim()
+const title = 'Spotify / Music'
+const description = normalizedLastFmUser
+  ? `Last.fm signal from ${normalizedLastFmUser}.`
+  : 'Low-volume focus loop placeholder.'
+---
+
+<button
+  type="button"
+  data-modal-target="modal-music"
+  aria-controls="modal-music"
+  aria-expanded="false"
+  aria-label="Open Spotify and music widget details"
+  class="bento-card group col-span-12 md:col-span-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 text-left opacity-0 translate-y-8 backdrop-blur-md transition-all hover:scale-[1.02] hover:border-neutral-600 hover:shadow-[0_0_28px_rgba(127,29,29,0.16)] focus:outline-none focus:ring-2 focus:ring-red-950/60"
+>
+  <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">Signal</p>
+  <h2 class="mt-8 text-xl font-semibold tracking-tight text-white">{title}</h2>
+  <p class="mt-3 text-sm leading-6 text-neutral-400">{description}</p>
+</button>

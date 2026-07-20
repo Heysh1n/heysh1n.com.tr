@@ -1,10 +1,23 @@
-# build output
-dist/
-# generated types
+# frontend build output
 .astro/
+frontend/dist/
+frontend/.astro/
+
+# backend build output
+backend/.next/
+backend/out/
+backend/build/
+backend/coverage/
+backend/test-results/
+backend/playwright-report/
+backend/blob-report/
+backend/playwright/.cache/
+backend/media/
 
 # dependencies
 node_modules/
+frontend/node_modules/
+backend/node_modules/
 
 # logs
 npm-debug.log*
@@ -16,6 +29,10 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+backend/.env
+backend/.env*.local
+frontend/.env
+frontend/.env*.local
 
 # macOS-specific files
 .DS_Store

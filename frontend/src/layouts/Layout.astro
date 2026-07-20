@@ -1,0 +1,44 @@
+---
+import '../styles/global.css';
+
+const title = 'Heysh1n | Workspace';
+const description =
+  'Dark bento workspace for Heysh1n, a backend engineer focused on systems tooling, Linux workflows, networking, and hardware-backed automation.';
+const siteUrl = 'https://heysh1n.com.tr/';
+const imageUrl = `${siteUrl}shell.jpg`;
+---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href={siteUrl} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="preload" as="image" href="/shell.jpg" type="image/jpeg" fetchpriority="high" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Heysh1n" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={siteUrl} />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:alt" content="Dark cyberpunk shell workspace background." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
+  </head>
+  <body class="relative h-auto w-screen overflow-y-auto bg-neutral-950 text-neutral-400 antialiased flex items-center justify-center md:h-screen md:w-screen md:overflow-hidden">
+    <div aria-hidden="true" class="pointer-events-none bg-[url('/shell.jpg')] bg-cover bg-center bg-no-repeat fixed inset-0 -z-20 opacity-10 mix-blend-overlay"></div>
+    <div aria-hidden="true" class="pointer-events-none fixed inset-0 z-50 h-full w-full bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20"></div>
+    <div aria-hidden="true" class="pointer-events-none fixed inset-0 z-40 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(10,10,10,0.8)_100%)]"></div>
+    <slot />
+  </body>
+</html>

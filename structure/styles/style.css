@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=VT323&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'JetBrains Mono', monospace;
+  border-radius: 15px;
+}
+body {
+  background-image: url('/assets/bg/shell_dark.jpg');
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+span {
+  color: #C48CFF;
+  font-size: 1.25rem;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+.svg{
+  width: 2rem;
+}
+.glassmorphism {
+  /* Semi-transparent background layer */
+  background: rgba(53, 1, 15, 0.35); 
+  
+  /* Blurs the content behind the element */
+  backdrop-filter: blur(10px); 
+  -webkit-backdrop-filter: blur(10px); /* Safari support */
+  
+  /* Semi-transparent border for a sharp glass edge */
+  border: 1px solid rgba(67, 2, 125, 0.75); 
+  
+  /* Soft shadow to create depth and separation */
+  box-shadow: 0 8px 32px 0 rgba(53, 1, 15, 0.35); 
+
+}
+.glassmorphism:hover {
+  /* Slightly increase the blur effect on hover for a dynamic feel */
+  backdrop-filter: blur(14px); 
+  -webkit-backdrop-filter: blur(14px); /* Safari support */
+  
+  /* Enhance the shadow to give a lifted appearance */
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.2); 
+}
+.top-bar{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+  gap: 3%;
+  margin: 10%;
+}
+    .hero_card{
+      display: flex;
+      flex-direction: column;
+      text-align: center;
+      max-width: 25%;
+      height: 15%;
+      padding: 1.5% 6%;
+    }
+          .hero_title{
+            font-size: 1.75rem;
+            margin-bottom: 15%;
+          }
+          .hero_item{
+            gap: 15%;
+          }
+    .env_card{
+      display: flex;
+      flex-direction: column;
+      text-align: center;
+      max-width: 25%;
+      height: 25%;
+    }
+          .env_card img{
+            justify-self: center;
+            width: 75%;
+            margin: 0 auto;
+            padding: 5% 0;
+            border-radius: 25%;
+          }

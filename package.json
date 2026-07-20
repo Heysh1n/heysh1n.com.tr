@@ -1,17 +1,22 @@
 {
-  "name": "heysh1n.com.tr",
+  "name": "heysh1n-web-hub",
+  "private": true,
   "type": "module",
-  "version": "0.0.1",
-  "engines": {
-    "node": ">=22.12.0"
-  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
-    "astro": "astro"
-  },
-  "dependencies": {
-    "astro": "^6.4.4"
+    "dev": "npm run dev:frontend",
+    "dev:frontend": "npm --workspace @heysh1n/frontend run dev",
+    "dev:backend": "npm --workspace @heysh1n/backend run dev",
+    "devsafe:backend": "npm --workspace @heysh1n/backend run devsafe",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "npm --workspace @heysh1n/frontend run build",
+    "build:backend": "npm --workspace @heysh1n/backend run build",
+    "preview:frontend": "npm --workspace @heysh1n/frontend run preview",
+    "payload": "npm --workspace @heysh1n/backend run payload",
+    "generate:types": "npm --workspace @heysh1n/backend run generate:types",
+    "generate:importmap": "npm --workspace @heysh1n/backend run generate:importmap"
   }
 }

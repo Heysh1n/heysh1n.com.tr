@@ -1,0 +1,529 @@
+---
+import HeroBlock from '../components/HeroBlock.astro';
+import MusicWidget from '../components/MusicWidget.astro';
+import MusicWidgetIsland from '../components/MusicWidgetIsland';
+import ProjectsGrid from '../components/ProjectsGrid.astro';
+import StackBlock from '../components/StackBlock.astro';
+import Layout from '../layouts/Layout.astro';
+
+type PayloadListResponse<T> = {
+  docs?: T[];
+};
+
+type HomePageGlobal = {
+  name?: string | null;
+  role?: string | null;
+  description?: string | null;
+  lastfm_user?: string | null;
+  discord_id?: string | null;
+};
+
+type ProjectStatus = 'active' | 'in_progress' | 'archived';
+type TechnologyCategory = 'os_tools' | 'languages' | 'networks' | 'game_servers';
+
+type RichTextNode = {
+  children?: RichTextNode[];
+  fields?: {
+    url?: string;
+  };
+  format?: number | string;
+  listType?: string;
+  tag?: string;
+  text?: string;
+  type?: string;
+  url?: string;
+};
+
+type RichTextContent = {
+  root?: RichTextNode;
+};
+
+type Project = {
+  id?: number | string;
+  title: string;
+  slug: string;
+  description: string;
+  detailedContent?: RichTextContent | null;
+  status?: ProjectStatus | null;
+  githubLink?: string | null;
+};
+
+type Technology = {
+  id?: number | string;
+  name: string;
+  category?: TechnologyCategory | null;
+};
+
+const homePageEndpoint = 'http://localhost:3000/api/globals/home-page';
+const projectsEndpoint = 'http://localhost:3000/api/projects';
+const technologiesEndpoint = 'http://localhost:3000/api/technologies';
+const payloadFetchTimeoutMs = 2500;
+
+const categoryLabels: Record<TechnologyCategory, string> = {
+  os_tools: 'OS & Tools',
+  languages: 'Languages',
+  networks: 'Networks',
+  game_servers: 'Game Servers',
+};
+
+const statusLabels: Record<ProjectStatus, string> = {
+  active: 'Active',
+  in_progress: 'In Progress',
+  archived: 'Archived',
+};
+
+const createRichText = (paragraphs: string[]): RichTextContent => ({
+  root: {
+    type: 'root',
+    children: paragraphs.map((text) => ({
+      type: 'paragraph',
+      children: [{ type: 'text', text }],
+    })),
+  },
+});
+
+const fallbackProjects: Project[] = [
+  {
+    title: 'SFC.py',
+    slug: 'sfc-py',
+    description: 'Smart File Collector.',
+    status: 'active',
+    detailedContent: createRichText([
+      'CLI/TUI utility on Python stdlib for parsing project structure.',
+      'Features include tree architecture parsing, TUI mode, targeted file picking, and monolithic context generation for LLM workflows.',
+      '> sfc tree -l 4',
+      '> sfc pick "*.py"',
+    ]),
+  },
+  {
+    title: 'AFS Project',
+    slug: 'afs-project',
+    description: 'Arduino/ESP32 Face Detection.',
+    status: 'in_progress',
+    detailedContent: createRichText([
+      'Hardware-software security and logging complex.',
+      'Uses Arduino Uno, ESP32, PIR sensors, face detection integration, metrics collection, and physical presence triggers.',
+    ]),
+  },
+  {
+    title: 'Minecraft Cores',
+    slug: 'minecraft-cores',
+    description: 'Nukkit / Endstone Java Plugins.',
+    status: 'active',
+    detailedContent: createRichText([
+      'Plugin-side server work around command handling, event listeners, permissions, scheduled tasks, and performance-conscious gameplay systems.',
+    ]),
+  },
+  {
+    title: 'Proxies',
+    slug: 'proxies',
+    description: 'VLESS / Hysteria 2 Configs.',
+    status: 'active',
+    detailedContent: createRichText([
+      'Network tunneling and proxy configuration practice with TLS-aware routing, service files, port hygiene, client profiles, and failure-mode debugging.',
+    ]),
+  },
+];
+
+const fallbackTechnologies: Technology[] = [
+  { name: 'Debian 13', category: 'os_tools' },
+  { name: 'Zsh', category: 'os_tools' },
+  { name: 'Termius', category: 'os_tools' },
+  { name: 'Python', category: 'languages' },
+  { name: 'TypeScript', category: 'languages' },
+  { name: 'Java', category: 'languages' },
+  { name: 'VLESS Protocol', category: 'networks' },
+  { name: 'Hysteria 2', category: 'networks' },
+  { name: 'Nukkit Core', category: 'game_servers' },
+  { name: 'Endstone', category: 'game_servers' },
+];
+
+const fallbackHomePage: HomePageGlobal = {
+  name: 'Heysh1n',
+  role: 'Backend Engineer',
+  description:
+    'Anonymous backend and systems persona focused on practical tooling, resilient server workflows, Linux-first environments, and hardware-adjacent experiments.',
+  lastfm_user: '',
+  discord_id: '',
+};
+
+const fetchPayloadGlobal = async <T,>(url: string): Promise<T | null> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), payloadFetchTimeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Payload responded with ${response.status}`);
+    }
+
+    const payload = (await response.json()) as unknown;
+
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('Payload returned an invalid global object');
+    }
+
+    return payload as T;
+  } catch (error) {
+    const message =
+      error instanceof Error && error.name === 'AbortError'
+        ? `Payload request timed out after ${payloadFetchTimeoutMs}ms`
+        : error instanceof Error
+          ? error.message
+          : String(error);
+    console.warn(`Unable to fetch Payload global from ${url}: ${message}`);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const fetchPayloadDocs = async <T,>(url: string): Promise<T[]> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), payloadFetchTimeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+
+    if (!response.ok) {
+      throw new Error(`Payload responded with ${response.status}`);
+    }
+
+    const payload = (await response.json()) as PayloadListResponse<T>;
+    return Array.isArray(payload.docs) ? payload.docs : [];
+  } catch (error) {
+    const message =
+      error instanceof Error && error.name === 'AbortError'
+        ? `Payload request timed out after ${payloadFetchTimeoutMs}ms`
+        : error instanceof Error
+          ? error.message
+          : String(error);
+    console.warn(`Unable to fetch Payload data from ${url}: ${message}`);
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+const withTextFormat = (text: string, format?: number | string): string => {
+  if (typeof format !== 'number') {
+    return text;
+  }
+
+  let formatted = text;
+
+  if (format & 16) formatted = `<code class="rounded border border-neutral-800 bg-neutral-950 px-1 py-0.5 text-purple-200">${formatted}</code>`;
+  if (format & 8) formatted = `<u>${formatted}</u>`;
+  if (format & 4) formatted = `<s>${formatted}</s>`;
+  if (format & 2) formatted = `<em>${formatted}</em>`;
+  if (format & 1) formatted = `<strong class="text-neutral-100">${formatted}</strong>`;
+
+  return formatted;
+};
+
+const renderChildren = (children: RichTextNode[] = []): string => children.map(renderRichTextNode).join('');
+
+const renderRichTextNode = (node: RichTextNode): string => {
+  const children = renderChildren(node.children);
+
+  switch (node.type) {
+    case 'root':
+      return children;
+    case 'text':
+      return withTextFormat(escapeHtml(node.text ?? ''), node.format);
+    case 'linebreak':
+      return '<br />';
+    case 'heading': {
+      const tag = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(node.tag ?? '') ? node.tag : 'h3';
+      return `<${tag} class="mt-5 text-xl font-semibold tracking-tight text-white">${children}</${tag}>`;
+    }
+    case 'paragraph':
+      return `<p class="leading-7">${children}</p>`;
+    case 'quote':
+      return `<blockquote class="border-l border-purple-700 pl-4 text-neutral-300">${children}</blockquote>`;
+    case 'list': {
+      const tag = node.listType === 'number' ? 'ol' : 'ul';
+      const markerClass = tag === 'ol' ? 'list-decimal' : 'list-disc';
+      return `<${tag} class="${markerClass} space-y-2 pl-5">${children}</${tag}>`;
+    }
+    case 'listitem':
+      return `<li>${children}</li>`;
+    case 'link':
+    case 'autolink': {
+      const href = escapeHtml(node.fields?.url ?? node.url ?? '#');
+      return `<a class="text-purple-300 underline decoration-purple-500/60 underline-offset-4 transition-colors hover:text-purple-100" href="${href}" target="_blank" rel="noreferrer">${children || href}</a>`;
+    }
+    case 'code':
+      return `<pre class="overflow-x-auto rounded-lg border border-neutral-800 bg-neutral-950 p-4 text-sm text-neutral-200"><code>${children || escapeHtml(node.text ?? '')}</code></pre>`;
+    default:
+      return children || escapeHtml(node.text ?? '');
+  }
+};
+
+const renderRichText = (content?: RichTextContent | null): string => {
+  const html = content?.root ? renderRichTextNode(content.root) : '';
+
+  return html.trim() || '<p class="leading-7 text-neutral-400">No detailed content has been published yet.</p>';
+};
+
+const sanitizeId = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const textOrFallback = (value: string | null | undefined, fallback: string): string => {
+  const trimmed = value?.trim();
+  return trimmed || fallback;
+};
+
+const [homePage, fetchedProjects, fetchedTechnologies] = await Promise.all([
+  fetchPayloadGlobal<HomePageGlobal>(homePageEndpoint),
+  fetchPayloadDocs<Project>(projectsEndpoint),
+  fetchPayloadDocs<Technology>(technologiesEndpoint),
+]);
+
+const heroName = textOrFallback(homePage?.name, fallbackHomePage.name ?? 'Heysh1n');
+const heroRole = textOrFallback(homePage?.role, fallbackHomePage.role ?? 'Backend Engineer');
+const heroDesc = textOrFallback(
+  homePage?.description,
+  fallbackHomePage.description ??
+    'Anonymous backend and systems persona focused on practical tooling, resilient server workflows, Linux-first environments, and hardware-adjacent experiments.',
+);
+const lastFmUser = textOrFallback(homePage?.lastfm_user, fallbackHomePage.lastfm_user ?? '');
+
+const projects = fetchedProjects.length > 0 ? fetchedProjects : fallbackProjects;
+const technologies = fetchedTechnologies.length > 0 ? fetchedTechnologies : fallbackTechnologies;
+
+const projectCards = projects.map((project, index) => ({
+  ...project,
+  contentHtml: renderRichText(project.detailedContent),
+  dialogId: `modal-project-${sanitizeId(project.slug || String(project.id ?? index))}`,
+  tone: index % 2 === 0 ? 'purple' : 'red',
+}));
+
+const stackGroups = (Object.keys(categoryLabels) as TechnologyCategory[]).map((category) => ({
+  category,
+  label: categoryLabels[category],
+  names: technologies
+    .filter((technology) => technology.category === category)
+    .map((technology) => technology.name),
+}));
+
+const stackSummary =
+  technologies
+    .map((technology) => technology.name)
+    .slice(0, 4)
+    .join(', ') || 'Payload stack data';
+---
+<Layout>
+  <main class="h-auto min-h-screen w-screen overflow-y-auto flex items-center justify-center py-6 md:h-screen md:min-h-0 md:w-screen md:overflow-hidden md:py-0">
+    <section class="max-w-6xl w-full grid grid-cols-12 gap-3 md:gap-4 p-4">
+      <HeroBlock name={heroName} role={heroRole} />
+      <MusicWidget lastFmUser={lastFmUser} />
+      <ProjectsGrid projectCards={projectCards} statusLabels={statusLabels} />
+      <StackBlock stackSummary={stackSummary} />
+    </section>
+
+    <dialog id="modal-hero" aria-labelledby="modal-hero-title" class="backdrop:bg-black/80 backdrop:backdrop-blur-sm bg-neutral-900 border border-neutral-700 text-neutral-300 p-6 rounded-xl w-full max-w-2xl outline-none">
+      <div class="flex items-start justify-between gap-6">
+        <div>
+          <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">Identity</p>
+          <h2 id="modal-hero-title" class="mt-3 text-2xl font-semibold tracking-tight text-white">{heroName} - {heroRole}</h2>
+        </div>
+        <button type="button" data-modal-close aria-label="Close identity dialog" class="shrink-0 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white">Close [X]</button>
+      </div>
+      <p class="mt-6 leading-7">
+        {heroDesc}
+      </p>
+    </dialog>
+
+    <dialog id="modal-music" aria-labelledby="modal-music-title" class="backdrop:bg-black/80 backdrop:backdrop-blur-sm bg-neutral-900 border border-neutral-700 text-neutral-300 p-6 rounded-xl w-full max-w-2xl outline-none">
+      <div class="flex items-start justify-between gap-6">
+        <div>
+          <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">Signal</p>
+          <h2 id="modal-music-title" class="mt-3 text-2xl font-semibold tracking-tight text-white">Spotify / Music</h2>
+        </div>
+        <button type="button" data-modal-close aria-label="Close music dialog" class="shrink-0 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white">Close [X]</button>
+      </div>
+      <div class="mt-6">
+        <MusicWidgetIsland username={lastFmUser} client:load />
+      </div>
+    </dialog>
+
+    {projectCards.map((project) => (
+      <dialog id={project.dialogId} aria-labelledby={`${project.dialogId}-title`} class="backdrop:bg-black/80 backdrop:backdrop-blur-sm bg-neutral-900 border border-neutral-700 text-neutral-300 p-6 rounded-xl w-full max-w-2xl outline-none">
+        <div class="flex items-start justify-between gap-6">
+          <div>
+            <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+              {project.status ? statusLabels[project.status] : 'Project'}
+            </p>
+            <h2 id={`${project.dialogId}-title`} class="mt-3 text-2xl font-semibold tracking-tight text-white">{project.title}</h2>
+          </div>
+          <button type="button" data-modal-close aria-label={`Close ${project.title} dialog`} class="shrink-0 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white">Close [X]</button>
+        </div>
+        <div class="mt-6 rounded-lg border border-neutral-800 bg-black/50 p-4 text-sm leading-7">
+          <div class="space-y-4 font-mono" set:html={project.contentHtml} />
+          {project.githubLink && (
+            <a class="mt-5 inline-flex text-sm text-purple-300 underline decoration-purple-500/60 underline-offset-4 transition-colors hover:text-purple-100" href={project.githubLink} target="_blank" rel="noreferrer">
+              GitHub
+            </a>
+          )}
+        </div>
+      </dialog>
+    ))}
+
+    <dialog id="modal-stack" aria-labelledby="modal-stack-title" class="backdrop:bg-black/80 backdrop:backdrop-blur-sm bg-neutral-900 border border-neutral-700 text-neutral-300 p-6 rounded-xl w-full max-w-2xl outline-none">
+      <div class="flex items-start justify-between gap-6">
+        <div>
+          <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">Main Stack</p>
+          <h2 id="modal-stack-title" class="mt-3 text-2xl font-semibold tracking-tight text-white">{stackSummary}</h2>
+        </div>
+        <button type="button" data-modal-close aria-label="Close stack dialog" class="shrink-0 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white">Close [X]</button>
+      </div>
+      <div class="mt-6 grid grid-cols-1 gap-3 font-mono text-sm sm:grid-cols-2">
+        {stackGroups.map((group) => (
+          <div class="rounded-lg border border-neutral-800 bg-black/50 p-4">
+            <p class="text-purple-300">{group.label}</p>
+            <p class="mt-3 leading-6 text-neutral-300">
+              {group.names.length > 0 ? group.names.join(', ') : 'No entries published yet'}
+            </p>
+          </div>
+        ))}
+      </div>
+    </dialog>
+  </main>
+
+  <script>
+    const modalButtons = document.querySelectorAll("[data-modal-target]");
+    const dialogs = document.querySelectorAll("dialog");
+    const focusableSelector = [
+      "a[href]",
+      "button:not([disabled])",
+      "textarea:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(",");
+    const triggerByDialogId = new Map();
+
+    const getFocusableElements = (dialog) =>
+      Array.from(dialog.querySelectorAll(focusableSelector)).filter(
+        (element) =>
+          element instanceof HTMLElement &&
+          element.offsetParent !== null &&
+          element.getAttribute("aria-hidden") !== "true",
+      );
+
+    const setTriggerState = (dialog, expanded) => {
+      const trigger =
+        triggerByDialogId.get(dialog.id) ??
+        document.querySelector(`[data-modal-target="${dialog.id}"]`);
+
+      if (trigger instanceof HTMLElement) {
+        trigger.setAttribute("aria-expanded", expanded ? "true" : "false");
+      }
+    };
+
+    modalButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const targetId = button.getAttribute("data-modal-target");
+        const dialog = targetId ? document.getElementById(targetId) : null;
+
+        if (dialog instanceof HTMLDialogElement) {
+          triggerByDialogId.set(dialog.id, button);
+          button.setAttribute("aria-expanded", "true");
+          dialog.showModal();
+
+          const focusableElements = getFocusableElements(dialog);
+          focusableElements[0]?.focus();
+        }
+      });
+    });
+
+    dialogs.forEach((dialog) => {
+      dialog.querySelectorAll("[data-modal-close]").forEach((closeButton) => {
+        closeButton.addEventListener("click", () => dialog.close());
+      });
+
+      dialog.addEventListener("close", () => {
+        setTriggerState(dialog, false);
+
+        const trigger = triggerByDialogId.get(dialog.id);
+        if (trigger instanceof HTMLElement) {
+          trigger.focus();
+        }
+      });
+
+      dialog.addEventListener("cancel", () => {
+        setTriggerState(dialog, false);
+      });
+
+      dialog.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          dialog.close();
+          return;
+        }
+
+        if (event.key !== "Tab") return;
+
+        const focusableElements = getFocusableElements(dialog);
+        if (focusableElements.length === 0) {
+          event.preventDefault();
+          return;
+        }
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (event.shiftKey && document.activeElement === firstElement) {
+          event.preventDefault();
+          lastElement.focus();
+        }
+
+        if (!event.shiftKey && document.activeElement === lastElement) {
+          event.preventDefault();
+          firstElement.focus();
+        }
+      });
+
+      dialog.addEventListener("click", (event) => {
+        if (event.target !== dialog) return;
+
+        const rect = dialog.getBoundingClientRect();
+        const isInsideDialog =
+          event.clientX >= rect.left &&
+          event.clientX <= rect.right &&
+          event.clientY >= rect.top &&
+          event.clientY <= rect.bottom;
+
+        if (!isInsideDialog) {
+          dialog.close();
+        }
+      });
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const cards = document.querySelectorAll(".bento-card");
+      cards.forEach((card, index) => {
+        setTimeout(() => {
+          card.classList.remove("opacity-0", "translate-y-8");
+          card.classList.add("opacity-100", "translate-y-0", "duration-700", "ease-out");
+        }, index * 100);
+      });
+    });
+  </script>
+</Layout>
