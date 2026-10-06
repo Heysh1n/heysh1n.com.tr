@@ -1,21 +1,30 @@
 ---
-import HeroBlock from '../components/HeroBlock.astro';
-import MusicWidget from '../components/MusicWidget.astro';
-import MusicWidgetIsland from '../components/MusicWidgetIsland';
-import ProjectsGrid from '../components/ProjectsGrid.astro';
-import StackBlock from '../components/StackBlock.astro';
 import Layout from '../layouts/Layout.astro';
+import MusicWidgetIsland from '../components/MusicWidgetIsland';
+import DiscordProfileIsland from '../components/DiscordProfileIsland';
 
 type PayloadListResponse<T> = {
   docs?: T[];
+};
+
+type HomePageSocial = {
+  id?: string;
+  platform: string;
+  url: string;
+  enabled?: boolean | null;
 };
 
 type HomePageGlobal = {
   name?: string | null;
   role?: string | null;
   description?: string | null;
+  music_provider?: 'ytmusic' | 'lastfm' | null;
+  ytmusic_url?: string | null;
   lastfm_user?: string | null;
   discord_id?: string | null;
+  discord_username?: string | null;
+  discord_tag?: string | null;
+  socials?: HomePageSocial[] | null;
 };
 
 type ProjectStatus = 'active' | 'in_progress' | 'archived';
@@ -54,10 +63,16 @@ type Technology = {
   category?: TechnologyCategory | null;
 };
 
-const homePageEndpoint = 'http://localhost:3000/api/globals/home-page';
-const projectsEndpoint = 'http://localhost:3000/api/projects';
-const technologiesEndpoint = 'http://localhost:3000/api/technologies';
-const payloadFetchTimeoutMs = 2500;
+const rawBackendUrl =
+  import.meta.env.PUBLIC_BACKEND_URL ||
+  import.meta.env.BACKEND_URL ||
+  'http://localhost:3000';
+const backendUrl = rawBackendUrl.replace(/\/+$/, '');
+
+const homePageEndpoint = `${backendUrl}/api/globals/home-page`;
+const projectsEndpoint = `${backendUrl}/api/projects`;
+const technologiesEndpoint = `${backendUrl}/api/technologies`;
+const payloadFetchTimeoutMs = 10000;
 
 const categoryLabels: Record<TechnologyCategory, string> = {
   os_tools: 'OS & Tools',
@@ -144,7 +159,9 @@ const fallbackHomePage: HomePageGlobal = {
   description:
     'Anonymous backend and systems persona focused on practical tooling, resilient server workflows, Linux-first environments, and hardware-adjacent experiments.',
   lastfm_user: '',
-  discord_id: '',
+  discord_id: '995737379417640961',
+  discord_username: 'heysh1n',
+  discord_tag: 'HEYSH1N',
 };
 
 const fetchPayloadGlobal = async <T,>(url: string): Promise<T | null> => {
@@ -224,11 +241,11 @@ const withTextFormat = (text: string, format?: number | string): string => {
 
   let formatted = text;
 
-  if (format & 16) formatted = `<code class="rounded border border-neutral-800 bg-neutral-950 px-1 py-0.5 text-purple-200">${formatted}</code>`;
+  if (format & 16) formatted = `<code>${formatted}</code>`;
   if (format & 8) formatted = `<u>${formatted}</u>`;
   if (format & 4) formatted = `<s>${formatted}</s>`;
   if (format & 2) formatted = `<em>${formatted}</em>`;
-  if (format & 1) formatted = `<strong class="text-neutral-100">${formatted}</strong>`;
+  if (format & 1) formatted = `<strong>${formatted}</strong>`;
 
   return formatted;
 };
@@ -247,26 +264,25 @@ const renderRichTextNode = (node: RichTextNode): string => {
       return '<br />';
     case 'heading': {
       const tag = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(node.tag ?? '') ? node.tag : 'h3';
-      return `<${tag} class="mt-5 text-xl font-semibold tracking-tight text-white">${children}</${tag}>`;
+      return `<${tag}>${children}</${tag}>`;
     }
     case 'paragraph':
-      return `<p class="leading-7">${children}</p>`;
+      return `<p>${children}</p>`;
     case 'quote':
-      return `<blockquote class="border-l border-purple-700 pl-4 text-neutral-300">${children}</blockquote>`;
+      return `<blockquote>${children}</blockquote>`;
     case 'list': {
       const tag = node.listType === 'number' ? 'ol' : 'ul';
-      const markerClass = tag === 'ol' ? 'list-decimal' : 'list-disc';
-      return `<${tag} class="${markerClass} space-y-2 pl-5">${children}</${tag}>`;
+      return `<${tag}>${children}</${tag}>`;
     }
     case 'listitem':
       return `<li>${children}</li>`;
     case 'link':
     case 'autolink': {
       const href = escapeHtml(node.fields?.url ?? node.url ?? '#');
-      return `<a class="text-purple-300 underline decoration-purple-500/60 underline-offset-4 transition-colors hover:text-purple-100" href="${href}" target="_blank" rel="noreferrer">${children || href}</a>`;
+      return `<a href="${href}" target="_blank" rel="noreferrer">${children || href}</a>`;
     }
     case 'code':
-      return `<pre class="overflow-x-auto rounded-lg border border-neutral-800 bg-neutral-950 p-4 text-sm text-neutral-200"><code>${children || escapeHtml(node.text ?? '')}</code></pre>`;
+      return `<pre><code>${children || escapeHtml(node.text ?? '')}</code></pre>`;
     default:
       return children || escapeHtml(node.text ?? '');
   }
@@ -275,7 +291,7 @@ const renderRichTextNode = (node: RichTextNode): string => {
 const renderRichText = (content?: RichTextContent | null): string => {
   const html = content?.root ? renderRichTextNode(content.root) : '';
 
-  return html.trim() || '<p class="leading-7 text-neutral-400">No detailed content has been published yet.</p>';
+  return html.trim() || '<p>No detailed content has been published yet.</p>';
 };
 
 const sanitizeId = (value: string): string =>
@@ -327,203 +343,177 @@ const stackSummary =
     .map((technology) => technology.name)
     .slice(0, 4)
     .join(', ') || 'Payload stack data';
+
+const fallbackSocials: HomePageSocial[] = [
+
+];
+
+const enabledSocials = homePage?.socials?.filter((s) => s.enabled !== false);
+const socials = enabledSocials && enabledSocials.length > 0 ? enabledSocials : fallbackSocials;
+
+const lastFmApiKey = import.meta.env.PUBLIC_LASTFM_API_KEY || '42bf547ad2d7ae6d078dd9fee67571a3';
+const musicProvider = homePage?.music_provider || 'ytmusic';
+const ytmusicUrl = homePage?.ytmusic_url || null;
+const discordId = textOrFallback(homePage?.discord_id, fallbackHomePage.discord_id ?? '995737379417640961');
+const discordUsername = textOrFallback(homePage?.discord_username, fallbackHomePage.discord_username ?? 'heysh1n');
+const discordTag = textOrFallback(homePage?.discord_tag, fallbackHomePage.discord_tag ?? 'HEYSH1N');
+
+const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
+  let parsedUrl: URL | null = null;
+  try {
+    parsedUrl = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+  } catch {
+    parsedUrl = null;
+  }
+
+  const hostname = parsedUrl ? parsedUrl.hostname.toLowerCase().replace(/^www\./, '') : '';
+  const domain = hostname;
+
+  let platform = (explicitPlatform || '').trim().toLowerCase();
+  if (!platform && hostname) {
+    if (hostname.includes('steampowered.com') || hostname.includes('steamcommunity.com')) {
+      platform = 'steam';
+    } else if (hostname === 't.me' || hostname.includes('telegram.')) {
+      platform = 'telegram';
+    } else if (hostname === 'x.com' || hostname.includes('twitter.')) {
+      platform = 'x';
+    } else if (hostname.includes('discord.')) {
+      platform = 'discord';
+    } else if (hostname.includes('youtube.') || hostname === 'youtu.be') {
+      platform = 'youtube';
+    } else {
+      const parts = hostname.split('.');
+      
+      platform = parts.length > 1 ? parts[parts.length - 2] : parts[0];
+    }
+  }
+  platform = platform || 'link';
+
+  const iconUrl = `https://cdn.simpleicons.org/${encodeURIComponent(platform)}/white`;
+  const fallbackFavicon = domain
+    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`
+    : '/assets/svg/github.svg';
+
+  const title = `${platform}.link`;
+
+  const cleaned = parsedUrl ? parsedUrl.pathname.replace(/^[/@]+/, '').replace(/\/+$/, '') : '';
+  const subText = cleaned || hostname || platform;
+
+  return {
+    platform,
+    domain,
+    title,
+    subText,
+    handle: subText,
+    iconUrl,
+    fallbackFavicon,
+    url: parsedUrl ? parsedUrl.toString() : rawUrl,
+  };
+};
 ---
 <Layout>
-  <main class="h-auto min-h-screen w-screen overflow-y-auto flex items-center justify-center py-6 md:h-screen md:min-h-0 md:w-screen md:overflow-hidden md:py-0">
-    <section class="max-w-6xl w-full grid grid-cols-12 gap-3 md:gap-4 p-4">
-      <HeroBlock name={heroName} role={heroRole} />
-      <MusicWidget lastFmUser={lastFmUser} />
-      <ProjectsGrid projectCards={projectCards} statusLabels={statusLabels} />
-      <StackBlock stackSummary={stackSummary} />
-    </section>
+  <section class="bento-container">
+    <div class="hero_card glassmorphism">
+      <span class="hero_title">hero.md</span>
+      <span class="hero_item">{heroName}</span>
+      <span class="hero_item">{heroRole}</span>
+    </div>
 
-    <dialog id="modal-hero" aria-labelledby="modal-hero-title" class="backdrop:bg-black/80 backdrop:backdrop-blur-sm bg-neutral-900 border border-neutral-700 text-neutral-300 p-6 rounded-xl w-full max-w-2xl outline-none">
-      <div class="flex items-start justify-between gap-6">
-        <div>
-          <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">Identity</p>
-          <h2 id="modal-hero-title" class="mt-3 text-2xl font-semibold tracking-tight text-white">{heroName} - {heroRole}</h2>
-        </div>
-        <button type="button" data-modal-close aria-label="Close identity dialog" class="shrink-0 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white">Close [X]</button>
-      </div>
-      <p class="mt-6 leading-7">
-        {heroDesc}
-      </p>
-    </dialog>
+    <div class="env_card glassmorphism">
+      <DiscordProfileIsland
+        client:load
+        discordId={discordId}
+        username={discordUsername}
+        displayName={heroName}
+        fallbackTag={discordTag}
+      />
+    </div>
 
-    <dialog id="modal-music" aria-labelledby="modal-music-title" class="backdrop:bg-black/80 backdrop:backdrop-blur-sm bg-neutral-900 border border-neutral-700 text-neutral-300 p-6 rounded-xl w-full max-w-2xl outline-none">
-      <div class="flex items-start justify-between gap-6">
-        <div>
-          <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">Signal</p>
-          <h2 id="modal-music-title" class="mt-3 text-2xl font-semibold tracking-tight text-white">Spotify / Music</h2>
-        </div>
-        <button type="button" data-modal-close aria-label="Close music dialog" class="shrink-0 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white">Close [X]</button>
+    <div class="player_card glassmorphism">
+      <div class="player_header">
+        <span class="hero_title">player.sh</span>
       </div>
-      <div class="mt-6">
-        <MusicWidgetIsland username={lastFmUser} client:load />
-      </div>
-    </dialog>
+      <MusicWidgetIsland
+        client:load
+        username={lastFmUser}
+        apiKey={lastFmApiKey}
+        ytmusicUrl={ytmusicUrl}
+        preferredProvider={musicProvider}
+        backendUrl={backendUrl}
+      />
+    </div>
 
     {projectCards.map((project) => (
-      <dialog id={project.dialogId} aria-labelledby={`${project.dialogId}-title`} class="backdrop:bg-black/80 backdrop:backdrop-blur-sm bg-neutral-900 border border-neutral-700 text-neutral-300 p-6 rounded-xl w-full max-w-2xl outline-none">
-        <div class="flex items-start justify-between gap-6">
-          <div>
-            <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
-              {project.status ? statusLabels[project.status] : 'Project'}
-            </p>
-            <h2 id={`${project.dialogId}-title`} class="mt-3 text-2xl font-semibold tracking-tight text-white">{project.title}</h2>
-          </div>
-          <button type="button" data-modal-close aria-label={`Close ${project.title} dialog`} class="shrink-0 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white">Close [X]</button>
-        </div>
-        <div class="mt-6 rounded-lg border border-neutral-800 bg-black/50 p-4 text-sm leading-7">
-          <div class="space-y-4 font-mono" set:html={project.contentHtml} />
-          {project.githubLink && (
-            <a class="mt-5 inline-flex text-sm text-purple-300 underline decoration-purple-500/60 underline-offset-4 transition-colors hover:text-purple-100" href={project.githubLink} target="_blank" rel="noreferrer">
-              GitHub
-            </a>
-          )}
-        </div>
-      </dialog>
+      <div class="project_card glassmorphism">
+        <span class="project_title">{project.title}</span>
+        <p class="project_description">{project.description}</p>
+        {project.status && (
+          <span class="project_status" data-status={project.status}>
+            {statusLabels[project.status]}
+          </span>
+        )}
+      </div>
     ))}
 
-    <dialog id="modal-stack" aria-labelledby="modal-stack-title" class="backdrop:bg-black/80 backdrop:backdrop-blur-sm bg-neutral-900 border border-neutral-700 text-neutral-300 p-6 rounded-xl w-full max-w-2xl outline-none">
-      <div class="flex items-start justify-between gap-6">
-        <div>
-          <p class="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">Main Stack</p>
-          <h2 id="modal-stack-title" class="mt-3 text-2xl font-semibold tracking-tight text-white">{stackSummary}</h2>
-        </div>
-        <button type="button" data-modal-close aria-label="Close stack dialog" class="shrink-0 rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white">Close [X]</button>
-      </div>
-      <div class="mt-6 grid grid-cols-1 gap-3 font-mono text-sm sm:grid-cols-2">
-        {stackGroups.map((group) => (
-          <div class="rounded-lg border border-neutral-800 bg-black/50 p-4">
-            <p class="text-purple-300">{group.label}</p>
-            <p class="mt-3 leading-6 text-neutral-300">
-              {group.names.length > 0 ? group.names.join(', ') : 'No entries published yet'}
-            </p>
-          </div>
-        ))}
-      </div>
-    </dialog>
-  </main>
+    <hr class="social-divider" />
 
-  <script>
-    const modalButtons = document.querySelectorAll("[data-modal-target]");
-    const dialogs = document.querySelectorAll("dialog");
-    const focusableSelector = [
-      "a[href]",
-      "button:not([disabled])",
-      "textarea:not([disabled])",
-      "input:not([disabled])",
-      "select:not([disabled])",
-      "[tabindex]:not([tabindex='-1'])",
-    ].join(",");
-    const triggerByDialogId = new Map();
-
-    const getFocusableElements = (dialog) =>
-      Array.from(dialog.querySelectorAll(focusableSelector)).filter(
-        (element) =>
-          element instanceof HTMLElement &&
-          element.offsetParent !== null &&
-          element.getAttribute("aria-hidden") !== "true",
-      );
-
-    const setTriggerState = (dialog, expanded) => {
-      const trigger =
-        triggerByDialogId.get(dialog.id) ??
-        document.querySelector(`[data-modal-target="${dialog.id}"]`);
-
-      if (trigger instanceof HTMLElement) {
-        trigger.setAttribute("aria-expanded", expanded ? "true" : "false");
-      }
-    };
-
-    modalButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const targetId = button.getAttribute("data-modal-target");
-        const dialog = targetId ? document.getElementById(targetId) : null;
-
-        if (dialog instanceof HTMLDialogElement) {
-          triggerByDialogId.set(dialog.id, button);
-          button.setAttribute("aria-expanded", "true");
-          dialog.showModal();
-
-          const focusableElements = getFocusableElements(dialog);
-          focusableElements[0]?.focus();
-        }
-      });
-    });
-
-    dialogs.forEach((dialog) => {
-      dialog.querySelectorAll("[data-modal-close]").forEach((closeButton) => {
-        closeButton.addEventListener("click", () => dialog.close());
-      });
-
-      dialog.addEventListener("close", () => {
-        setTriggerState(dialog, false);
-
-        const trigger = triggerByDialogId.get(dialog.id);
-        if (trigger instanceof HTMLElement) {
-          trigger.focus();
-        }
-      });
-
-      dialog.addEventListener("cancel", () => {
-        setTriggerState(dialog, false);
-      });
-
-      dialog.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          dialog.close();
-          return;
-        }
-
-        if (event.key !== "Tab") return;
-
-        const focusableElements = getFocusableElements(dialog);
-        if (focusableElements.length === 0) {
-          event.preventDefault();
-          return;
-        }
-
-        const firstElement = focusableElements[0];
-        const lastElement = focusableElements[focusableElements.length - 1];
-
-        if (event.shiftKey && document.activeElement === firstElement) {
-          event.preventDefault();
-          lastElement.focus();
-        }
-
-        if (!event.shiftKey && document.activeElement === lastElement) {
-          event.preventDefault();
-          firstElement.focus();
-        }
-      });
-
-      dialog.addEventListener("click", (event) => {
-        if (event.target !== dialog) return;
-
-        const rect = dialog.getBoundingClientRect();
-        const isInsideDialog =
-          event.clientX >= rect.left &&
-          event.clientX <= rect.right &&
-          event.clientY >= rect.top &&
-          event.clientY <= rect.bottom;
-
-        if (!isInsideDialog) {
-          dialog.close();
-        }
-      });
-    });
-
-    document.addEventListener("DOMContentLoaded", () => {
-      const cards = document.querySelectorAll(".bento-card");
-      cards.forEach((card, index) => {
-        setTimeout(() => {
-          card.classList.remove("opacity-0", "translate-y-8");
-          card.classList.add("opacity-100", "translate-y-0", "duration-700", "ease-out");
-        }, index * 100);
-      });
-    });
-  </script>
+    <div class="socials-container">
+      {socials.map((social) => {
+        const meta = getSocialMeta(social.url, social.platform);
+        return (
+          <a
+            class="social-card glassmorphism"
+            href={meta.url}
+            target="_blank"
+            rel="noreferrer"
+            title={meta.title}
+          >
+            <img
+              src={meta.iconUrl}
+              alt={meta.platform}
+              class="social-icon"
+              loading="lazy"
+              onerror={`this.onerror=null; this.src='${meta.fallbackFavicon}';`}
+            />
+            <div class="social-info">
+              <span class="social-title">{meta.title}</span>
+              <span class="social-handle">{meta.handle}</span>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  </section>
 </Layout>
+
+<style>
+  /* ── Scoped overrides (page-level only) ── */
+
+  .project_card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.5rem;
+  }
+
+  .project_title {
+    font-size: 1.35rem;
+    font-weight: 600;
+  }
+
+  .project_description {
+    color: #b0b0b0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .project_status {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    opacity: 0.6;
+    align-self: flex-start;
+  }
+</style>
+
+

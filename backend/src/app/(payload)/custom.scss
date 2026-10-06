@@ -1,0 +1,159 @@
+/* ── Heysh1n Cyberpunk Admin Theme for Payload CMS ── */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --font-body: 'JetBrains Mono', monospace, -apple-system, sans-serif !important;
+  --font-mono: 'JetBrains Mono', monospace !important;
+
+  /* Theme elevation & background dark palette */
+  --theme-bg: #09090e !important;
+  --theme-elevation-0: #09090e !important;
+  --theme-elevation-50: #0f0f15 !important;
+  --theme-elevation-100: #14141d !important;
+  --theme-elevation-150: #1a1a26 !important;
+  --theme-elevation-200: #222232 !important;
+  --theme-elevation-250: #2c2c40 !important;
+  --theme-elevation-300: #383850 !important;
+
+  /* Neon Purple / Violet primary brand colors */
+  --theme-success-500: #4ade80 !important;
+  --theme-warning-500: #f59e0b !important;
+  --theme-error-500: #ef4444 !important;
+
+  /* Text colors */
+  --theme-text: #f1f5f9 !important;
+  --theme-text-secondary: #94a3b8 !important;
+}
+
+html, body {
+  font-family: 'JetBrains Mono', monospace, sans-serif !important;
+  background-color: #09090e !important;
+  color: #f1f5f9 !important;
+}
+
+/* Nav / Sidebar Styling */
+nav.nav, aside.nav, .template-default__nav, .nav {
+  background-color: #0c0c13 !important;
+  border-right: 1px solid rgba(168, 85, 247, 0.2) !important;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Sidebar Links */
+.nav__link, .nav a, a.nav__link {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 13px !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+.nav__link:hover, .nav a:hover {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+  color: #c084fc !important;
+  text-shadow: 0 0 10px rgba(168, 85, 247, 0.4) !important;
+}
+
+.nav__link--active, a.nav__link--active {
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(126, 34, 206, 0.15) 100%) !important;
+  border-left: 3px solid #a855f7 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+/* Header bar */
+header.app-header, .template-default__header {
+  background-color: #0c0c13 !important;
+  border-bottom: 1px solid rgba(168, 85, 247, 0.2) !important;
+}
+
+/* Primary Buttons */
+.btn--style-primary, button.btn--style-primary, .btn--style-primary:not([disabled]) {
+  background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%) !important;
+  border: 1px solid rgba(168, 85, 247, 0.5) !important;
+  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.35) !important;
+  color: #ffffff !important;
+  border-radius: 8px !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+}
+
+.btn--style-primary:hover:not([disabled]) {
+  background: linear-gradient(135deg, #9333ea 0%, #c084fc 100%) !important;
+  box-shadow: 0 6px 24px rgba(168, 85, 247, 0.6) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Secondary Buttons */
+.btn--style-secondary {
+  background-color: rgba(26, 26, 38, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #e2e8f0 !important;
+  border-radius: 8px !important;
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+.btn--style-secondary:hover {
+  border-color: rgba(168, 85, 247, 0.4) !important;
+  color: #c084fc !important;
+}
+
+/* Form Inputs */
+input[type='text'], input[type='email'], input[type='password'], textarea, select {
+  background-color: #111119 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+  border-radius: 8px !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+input[type='text']:focus, input[type='email']:focus, input[type='password']:focus, textarea:focus, select:focus {
+  border-color: #a855f7 !important;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.25) !important;
+  outline: none !important;
+}
+
+/* Tables & Lists */
+table, .table {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+th {
+  background-color: #12121c !important;
+  color: #c084fc !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  border-bottom: 1px solid rgba(168, 85, 247, 0.2) !important;
+}
+
+td {
+  background-color: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  font-size: 13px !important;
+}
+
+tr:hover td {
+  background-color: rgba(168, 85, 247, 0.06) !important;
+}
+
+/* Custom Cyberpunk Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #09090e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a203f;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a855f7;
+}

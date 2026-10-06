@@ -122,6 +122,7 @@ export const validateLicenseEndpoint: Endpoint = {
     })
 
     const license = (result.docs as AccessKey[]).find((doc) => {
+      if (!doc.license_key) return false
       const expected = computeExpectedHash(doc.license_key.trim(), hwid)
 
       return safeEqual(expected, hash)

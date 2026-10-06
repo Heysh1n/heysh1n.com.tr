@@ -21,15 +21,25 @@ import { HomePage } from './globals/HomePage'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 const serverURL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
+const extraOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
 const allowedOrigins = Array.from(
   new Set([
     serverURL,
+    'https://heysh1n.com.tr',
+    'https://www.heysh1n.com.tr',
+    'http://heysh1n.com.tr',
+    'http://www.heysh1n.com.tr',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://localhost:4321',
     'http://127.0.0.1:4321',
     'http://localhost:4322',
     'http://127.0.0.1:4322',
+    ...extraOrigins,
   ]),
 )
 
@@ -39,7 +49,31 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    meta: {
+      titleSuffix: ' // Heysh1n Hub',
+      icons: [
+        {
+          rel: 'icon',
+          type: 'image/svg+xml',
+          url: '/favicon.svg',
+        },
+      ],
+      openGraph: {
+        title: 'Heysh1n Control Panel',
+        description: 'Systems, Portfolio & SFCP License Management',
+      },
+    },
     components: {
+      graphics: {
+        Logo: {
+          path: '/components/AdminLogo',
+          exportName: 'AdminLogo',
+        },
+        Icon: {
+          path: '/components/AdminIcon',
+          exportName: 'AdminIcon',
+        },
+      },
       views: {
         dashboard: {
           Component: {

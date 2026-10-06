@@ -487,8 +487,24 @@ export interface HomePage {
   name: string;
   role: string;
   description: string;
+  music_provider?: ('ytmusic' | 'lastfm') | null;
+  /**
+   * Link to song on music.youtube.com or youtube.com (e.g. https://music.youtube.com/watch?v=...)
+   */
+  ytmusic_url?: string | null;
   lastfm_user?: string | null;
+  /**
+   * Discord user snowflake ID for real-time presence (e.g. 995737379417640961)
+   */
   discord_id?: string | null;
+  /**
+   * Discord handle e.g. heysh1n or @heysh1n
+   */
+  discord_username?: string | null;
+  /**
+   * Guild or Clan tag badge displayed next to the name (e.g. HEYSH1N, DEV, etc.)
+   */
+  discord_tag?: string | null;
   socials?:
     | {
         platform: string;
@@ -508,8 +524,12 @@ export interface HomePageSelect<T extends boolean = true> {
   name?: T;
   role?: T;
   description?: T;
+  music_provider?: T;
+  ytmusic_url?: T;
   lastfm_user?: T;
   discord_id?: T;
+  discord_username?: T;
+  discord_tag?: T;
   socials?:
     | T
     | {
