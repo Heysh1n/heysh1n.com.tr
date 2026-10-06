@@ -2,6 +2,7 @@ import type { SerializedEditorState } from 'lexical'
 import type { CollectionConfig, FieldHook } from 'payload'
 
 import { isAdminOrOwner } from './Users'
+import { triggerCloudflareDeploy } from '../hooks/triggerCloudflareDeploy'
 
 export type ProjectStatus = 'active' | 'in_progress' | 'archived'
 
@@ -59,6 +60,9 @@ export const Projects: CollectionConfig = {
   },
   typescript: {
     interface: 'Project',
+  },
+  hooks: {
+    afterChange: [triggerCloudflareDeploy],
   },
   fields: [
     {
