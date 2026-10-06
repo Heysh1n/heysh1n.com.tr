@@ -1,3 +1,10 @@
+export interface DiscordClan {
+  identity_guild_id?: string;
+  identity_enabled?: boolean;
+  tag?: string;
+  badge?: string;
+}
+
 export interface DiscordUser {
   id: string;
   username: string;
@@ -8,12 +15,8 @@ export interface DiscordUser {
     asset: string;
     sku_id?: string;
   } | null;
-  clan?: {
-    identity_guild_id?: string;
-    identity_enabled?: boolean;
-    tag?: string;
-    badge?: string;
-  } | null;
+  clan?: DiscordClan | null;
+  primary_guild?: DiscordClan | null;
   bot?: boolean;
 }
 

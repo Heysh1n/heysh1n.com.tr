@@ -14,33 +14,50 @@ const DEFAULT_DISCORD_ID = '995737379417640961';
 const LANYARD_WS_URL = 'wss://api.lanyard.rest/socket';
 const LANYARD_REST_URL = 'https://api.lanyard.rest/v1/users/';
 
-function getActivityImageUrl(activity: Activity): string | null {
-  if (!activity.assets?.large_image) return null;
-  const raw = activity.assets.large_image;
+function parseDiscordAssetUrl(raw?: string | null, applicationId?: string | null): string | null {
+  if (!raw) return null;
+
+  // Discord Media Proxy for external rich presence assets (JetBrains, VS Code, etc.)
   if (raw.startsWith('mp:external/')) {
-    const stripped = raw.replace(/^mp:external\/[^/]+\/https?\//, 'https://');
-    if (stripped.startsWith('http')) return stripped;
-    return `https://media.discordapp.net/external/${raw.replace('mp:external/', '')}`;
+    return `https://media.discordapp.net/external/${raw.replace(/^mp:external\//, '')}`;
   }
+  if (raw.startsWith('external/')) {
+    return `https://media.discordapp.net/external/${raw.replace(/^external\//, '')}`;
+  }
+  if (raw.startsWith('mp:')) {
+    return `https://media.discordapp.net/${raw.replace(/^mp:\/?/, '')}`;
+  }
+
+  // Spotify album art
   if (raw.startsWith('spotify:')) {
     return `https://i.scdn.co/image/${raw.replace('spotify:', '')}`;
   }
-  if (activity.application_id) {
-    return `https://cdn.discordapp.com/app-assets/${activity.application_id}/${raw}.png`;
+
+  // Direct HTTP / HTTPS URLs
+  if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    return raw;
   }
+
+  // Discord Application Asset ID uploaded to Discord Developer Portal
+  if (applicationId) {
+    return `https://cdn.discordapp.com/app-assets/${applicationId}/${raw}.png`;
+  }
+
   return null;
 }
 
-function getActivitySmallImageUrl(activity: Activity): string | null {
-  if (!activity.assets?.small_image) return null;
-  const raw = activity.assets.small_image;
-  if (raw.startsWith('mp:external/')) {
-    const stripped = raw.replace(/^mp:external\/[^/]+\/https?\//, 'https://');
-    if (stripped.startsWith('http')) return stripped;
-    return `https://media.discordapp.net/external/${raw.replace('mp:external/', '')}`;
-  }
-  if (activity.application_id) {
-    return `https://cdn.discordapp.com/app-assets/${activity.application_id}/${raw}.png`;
+/**
+ * Fallback URL extractor in case Discord media proxy is unreachable or blocked.
+ * Restores protocol and replaces %40 with @ for CDN endpoints (e.g. jsdelivr).
+ */
+function getDirectExternalFallbackUrl(raw?: string | null): string | null {
+  if (!raw) return null;
+  const match = raw.match(/\/https?\/(.+)$/);
+  if (match) {
+    const isHttps = raw.includes('/https/');
+    const protocol = isHttps ? 'https' : 'http';
+    const path = match[1].replace(/%40/g, '@');
+    return `${protocol}://${path}`;
   }
   return null;
 }
@@ -172,7 +189,9 @@ export default function DiscordProfileIsland({
   const activities = data?.activities || [];
 
   const customStatus = activities.find((a) => a.type === 4);
-  const gameActivity = activities.find((a) => a.type === 0 || a.type === 1 || a.type === 5);
+  const gameActivity = activities.find(
+    (a) => a.type === 0 || a.type === 1 || a.type === 3 || a.type === 5,
+  );
   const spotify = data?.listening_to_spotify && data?.spotify ? data.spotify : null;
 
   // Real-time elapsed timer
@@ -209,11 +228,45 @@ export default function DiscordProfileIsland({
       }?size=160`
     : fallbackAvatar;
 
-  const clanTag = discordUser?.clan?.tag || fallbackTag;
+  // Discord Guild / Clan support (primary_guild or clan)
+  const clan = discordUser?.primary_guild || discordUser?.clan;
+  const clanTag = clan?.identity_enabled !== false && clan?.tag ? clan.tag : fallbackTag;
   const clanBadge =
-    discordUser?.clan?.badge && discordUser?.clan?.identity_guild_id
-      ? `https://cdn.discordapp.com/clan-badges/${discordUser.clan.identity_guild_id}/${discordUser.clan.badge}.png?size=32`
+    clan?.identity_enabled !== false && clan?.badge && clan?.identity_guild_id
+      ? `https://cdn.discordapp.com/clan-badges/${clan.identity_guild_id}/${clan.badge}.png?size=32`
       : null;
+
+  // Activity images resolution (supports external proxies, CDNs, app assets)
+  const rawLarge = gameActivity?.assets?.large_image;
+  const rawSmall = gameActivity?.assets?.small_image;
+
+  const largeImgUrl = parseDiscordAssetUrl(rawLarge, gameActivity?.application_id);
+  const smallImgUrl = parseDiscordAssetUrl(rawSmall, gameActivity?.application_id);
+
+  // If large image is absent but small is present, promote small to main image
+  const mainImgUrl = largeImgUrl || smallImgUrl;
+  const mainRawAsset = largeImgUrl ? rawLarge : rawSmall;
+  const mainAlt =
+    (largeImgUrl ? gameActivity?.assets?.large_text : gameActivity?.assets?.small_text) ||
+    gameActivity?.name ||
+    'Activity';
+
+  const secondaryImgUrl = largeImgUrl ? smallImgUrl : null;
+  const secondaryRawAsset = largeImgUrl ? rawSmall : null;
+  const secondaryTitle = gameActivity?.assets?.small_text || '';
+
+  const handleImageError = (
+    e: React.SyntheticEvent<HTMLImageElement>,
+    rawAsset?: string | null,
+  ) => {
+    const img = e.currentTarget;
+    const fallback = getDirectExternalFallbackUrl(rawAsset);
+    if (fallback && img.src !== fallback) {
+      img.src = fallback;
+      return;
+    }
+    img.style.display = 'none';
+  };
 
   const handleCopy = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -249,9 +302,21 @@ export default function DiscordProfileIsland({
               {discordUser?.global_name || displayName}
             </span>
             {clanTag && (
-              <span className="discord_guild_tag" title="Guild / Clan">
-                {clanBadge && <img src={clanBadge} alt="" className="discord_guild_icon" />}
-                <span className="discord_guild_text">[{clanTag}]</span>
+              <span className="discord_guild_tag" title={`Guild: ${clanTag}`}>
+                {clanBadge && (
+                  <img
+                    src={clanBadge}
+                    alt=""
+                    className="discord_guild_icon"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                )}
+                <span className="discord_guild_text">
+                  {clanBadge ? clanTag : (clanTag.startsWith('[') ? clanTag : `[${clanTag}]`)}
+                </span>
               </span>
             )}
 
@@ -329,22 +394,35 @@ export default function DiscordProfileIsland({
           <div className="discord_game_activity">
             <div className="discord_activity_label">
               <span className="discord_activity_pulse" />
-              <span>{gameActivity.type === 1 ? 'Streaming' : 'Playing'}</span>
+              <span>
+                {gameActivity.type === 1
+                  ? 'Streaming'
+                  : gameActivity.type === 3
+                    ? 'Watching'
+                    : gameActivity.type === 5
+                      ? 'Competing'
+                      : 'Playing'}
+              </span>
             </div>
             <div className="discord_activity_content">
-              {getActivityImageUrl(gameActivity) && (
+              {mainImgUrl && (
                 <div className="discord_game_image_wrapper">
                   <img
-                    src={getActivityImageUrl(gameActivity)!}
-                    alt={gameActivity.name}
+                    src={mainImgUrl}
+                    alt={mainAlt}
+                    title={mainAlt}
                     className="discord_game_large_img"
+                    loading="lazy"
+                    onError={(e) => handleImageError(e, mainRawAsset)}
                   />
-                  {getActivitySmallImageUrl(gameActivity) && (
+                  {secondaryImgUrl && (
                     <img
-                      src={getActivitySmallImageUrl(gameActivity)!}
-                      alt=""
+                      src={secondaryImgUrl}
+                      alt={secondaryTitle}
+                      title={secondaryTitle}
                       className="discord_game_small_img"
-                      title={gameActivity.assets?.small_text || ''}
+                      loading="lazy"
+                      onError={(e) => handleImageError(e, secondaryRawAsset)}
                     />
                   )}
                 </div>
