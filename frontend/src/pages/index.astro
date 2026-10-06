@@ -62,17 +62,30 @@ type Technology = {
   name: string;
   category?: TechnologyCategory | null;
 };
-
+const isProd = import.meta.env.PROD;
 const rawBackendUrl =
   import.meta.env.PUBLIC_BACKEND_URL ||
   import.meta.env.BACKEND_URL ||
-  'http://localhost:3000';
+  (isProd ? '' : 'http://localhost:3000');
+
+if (!rawBackendUrl) {
+  if (isProd) {
+    throw new Error(
+      '❌ [SSG Build Error] PUBLIC_BACKEND_URL is not configured for production build! Please add PUBLIC_BACKEND_URL in Cloudflare Dashboard: Settings -> Build -> Build variables and secrets.'
+    );
+  } else {
+    console.warn('⚠️ [Dev Warning] PUBLIC_BACKEND_URL is not set, falling back to http://localhost:3000');
+  }
+}
+
 const backendUrl = rawBackendUrl.replace(/\/+$/, '');
+console.log(`[Payload SSG] Fetching data for static build from: ${backendUrl}`);
 
 const homePageEndpoint = `${backendUrl}/api/globals/home-page`;
 const projectsEndpoint = `${backendUrl}/api/projects`;
 const technologiesEndpoint = `${backendUrl}/api/technologies`;
-const payloadFetchTimeoutMs = 10000;
+// Render (free tier) + Neon cold-start can take up to 45 seconds during production build
+const payloadFetchTimeoutMs = isProd ? 45000 : 10000;
 
 const categoryLabels: Record<TechnologyCategory, string> = {
   os_tools: 'OS & Tools',
