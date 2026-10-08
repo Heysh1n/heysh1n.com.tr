@@ -67,11 +67,3 @@ Build both workspaces:
 ```sh
 npm run build
 ```
-
-## SFCP API
-
-- `POST http://localhost:3000/api/v1/validate`
-- `POST http://localhost:3000/api/v1/licenses/generate`
-- `GET http://localhost:3000/api/sfcp/update.json`
-
-See [docs/architecture.md](./docs/architecture.md) and [docs/payload-setup.md](./docs/payload-setup.md) for details.
