@@ -28,12 +28,35 @@ const DEFAULT_TRACK: TrackInfo = {
 
 const AUDIO_SRC = '/assets/audio/ambient.mp3';
 
+/**
+ * Разрешает абсолютный базовый URL бэкенда Payload.
+ * Приоритет:
+ * 1. Проп backendUrl
+ * 2. process.env.PUBLIC_BACKEND_URL (или import.meta.env.PUBLIC_BACKEND_URL в Astro/Vite)
+ * 3. Fallback: http://localhost:3000
+ */
+const resolveBackendUrl = (propUrl?: string): string => {
+  if (propUrl && propUrl.trim().length > 0) {
+    return propUrl.trim().replace(/\/+$/, '');
+  }
+
+  const envBackend =
+    (typeof process !== 'undefined' && process.env?.PUBLIC_BACKEND_URL) ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.PUBLIC_BACKEND_URL);
+
+  if (envBackend && typeof envBackend === 'string' && envBackend.trim().length > 0) {
+    return envBackend.trim().replace(/\/+$/, '');
+  }
+
+  return 'http://localhost:3000';
+};
+
 export default function MusicWidgetIsland({
   username,
   apiKey,
   ytmusicUrl,
   preferredProvider = 'ytmusic',
-  backendUrl = 'http://localhost:3000',
+  backendUrl,
 }: MusicWidgetIslandProps) {
   const [track, setTrack] = useState<TrackInfo>(DEFAULT_TRACK);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -41,7 +64,7 @@ export default function MusicWidgetIsland({
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize HTML5 Audio element
+  // Инициализация HTML5 Audio элемента
   useEffect(() => {
     const audio = new Audio(AUDIO_SRC);
     audio.loop = true;
@@ -64,49 +87,44 @@ export default function MusicWidgetIsland({
     };
   }, []);
 
-  // Fetch track metadata and album art
+  // Получение метаданных трека и обложки
   useEffect(() => {
     let isSubscribed = true;
 
     const fetchMetadata = async () => {
-      // 1. Try backend /api/ytmusic
-      try {
-        const effectiveBackend =
-          typeof window !== 'undefined' &&
-          window.location.hostname !== 'localhost' &&
-          backendUrl.includes('localhost')
-            ? window.location.origin
-            : backendUrl;
+      // 1. Запрос к абсолютному URL бэкенда Payload CMS (/api/ytmusic)
+      // Предотвращает 404 в Astro static режиме: никаких относительных запросов к статик-хосту!
+      const baseBackend = resolveBackendUrl(backendUrl);
+      const ytmusicEndpoint = `${baseBackend}/api/ytmusic`;
 
-        const endpoints = [`${effectiveBackend}/api/ytmusic`, '/api/ytmusic'];
-        for (const ep of endpoints) {
-          try {
-            const res = await fetch(ep);
-            if (res.ok) {
-              const data = await res.json();
-              if (data.success && data.track && data.track.name) {
-                if (isSubscribed) {
-                  setTrack({
-                    name: data.track.name,
-                    artist: data.track.artist || 'YouTube Music',
-                    albumArt: data.track.albumArt || DEFAULT_TRACK.albumArt,
-                    url: data.track.url || ytmusicUrl || DEFAULT_TRACK.url,
-                    isNowPlaying: data.track.isNowPlaying ?? false,
-                    provider: 'ytmusic',
-                  });
-                }
-                return;
-              }
+      try {
+        const res = await fetch(ytmusicEndpoint, {
+          headers: {
+            Accept: 'application/json',
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.track && data.track.name) {
+            if (isSubscribed) {
+              setTrack({
+                name: data.track.name,
+                artist: data.track.artist || 'YouTube Music',
+                albumArt: data.track.albumArt || DEFAULT_TRACK.albumArt,
+                url: data.track.url || ytmusicUrl || DEFAULT_TRACK.url,
+                isNowPlaying: data.track.isNowPlaying ?? false,
+                provider: 'ytmusic',
+              });
             }
-          } catch {
-            // continue
+            return;
           }
         }
-      } catch {
-        // ignore
+      } catch (err) {
+        // Сервер бэкенда может спать или быть недоступен — переходим к oEmbed фолбеку
       }
 
-      // 2. Direct oEmbed if ytmusicUrl provided
+      // 2. Прямой oEmbed запрос к YouTube, если передан ytmusicUrl в конфигурации
       if (ytmusicUrl && ytmusicUrl.trim().length > 0) {
         try {
           const res = await fetch(
@@ -139,7 +157,7 @@ export default function MusicWidgetIsland({
             }
           }
         } catch {
-          // ignore
+          // Игнорируем ошибку сети для сохранения работы интерфейса
         }
       }
     };
@@ -153,7 +171,7 @@ export default function MusicWidgetIsland({
     };
   }, [ytmusicUrl, backendUrl]);
 
-  // Controls
+  // Управление воспроизведением
   const togglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) {

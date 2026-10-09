@@ -2,6 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import MusicWidgetIsland from '../components/MusicWidgetIsland';
 import DiscordProfileIsland from '../components/DiscordProfileIsland';
+import ProjectModal from '../components/ProjectModal.astro';
+import { renderProjectContent } from '../utils/markdown';
 
 type PayloadListResponse<T> = {
   docs?: T[];
@@ -338,7 +340,7 @@ const technologies = fetchedTechnologies.length > 0 ? fetchedTechnologies : fall
 
 const projectCards = projects.map((project, index) => ({
   ...project,
-  contentHtml: renderRichText(project.detailedContent),
+  contentHtml: renderProjectContent(project.detailedContent),
   dialogId: `modal-project-${sanitizeId(project.slug || String(project.id ?? index))}`,
   tone: index % 2 === 0 ? 'purple' : 'red',
 }));
@@ -424,109 +426,161 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
   };
 };
 ---
-<Layout>
-  <section class="bento-container">
-    <div class="hero_card glassmorphism">
-      <span class="hero_title">hero.md</span>
-      <span class="hero_item">{heroName}</span>
-      <span class="hero_item">{heroRole}</span>
-    </div>
-
-    <div class="env_card glassmorphism">
-      <DiscordProfileIsland
-        client:load
-        discordId={discordId}
-        username={discordUsername}
-        displayName={heroName}
-        fallbackTag={discordTag}
-      />
-    </div>
-
-    <div class="player_card glassmorphism">
-      <div class="player_header">
-        <span class="hero_title">player.sh</span>
-      </div>
-      <MusicWidgetIsland
-        client:load
-        username={lastFmUser}
-        apiKey={lastFmApiKey}
-        ytmusicUrl={ytmusicUrl}
-        preferredProvider={musicProvider}
-        backendUrl={backendUrl}
-      />
-    </div>
-
-    {projectCards.map((project) => (
-      <div class="project_card glassmorphism">
-        <span class="project_title">{project.title}</span>
-        <p class="project_description">{project.description}</p>
-        {project.status && (
-          <span class="project_status" data-status={project.status}>
-            {statusLabels[project.status]}
-          </span>
-        )}
-      </div>
-    ))}
-
-    <hr class="social-divider" />
-
-    <div class="socials-container">
-      {socials.map((social) => {
-        const meta = getSocialMeta(social.url, social.platform);
-        return (
-          <a
-            class="social-card glassmorphism"
-            href={meta.url}
-            target="_blank"
-            rel="noreferrer"
-            title={meta.title}
+<Layout discordId={discordId}>
+  <main class="w-full max-w-5xl mx-auto p-4 flex flex-col justify-center items-center">
+    <section class="bento-container">
+      <div class="hero_card glassmorphism h-full flex flex-col">
+        <span class="hero_title">hero.md</span>
+        <span class="hero_item">{heroName}</span>
+        <span class="hero_item mb-4">{heroRole}</span>
+        <div class="mt-auto pt-4 border-t border-white/10 w-full">
+          <button 
+            type="button" 
+            class="w-full text-center py-2 px-4 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm text-purple-300 cursor-pointer"
+            data-modal-target="modal-stack"
           >
-            <img
-              src={meta.iconUrl}
-              alt={meta.platform}
-              class="social-icon"
-              loading="lazy"
-              onerror={`this.onerror=null; this.src='${meta.fallbackFavicon}';`}
-            />
-            <div class="social-info">
-              <span class="social-title">{meta.title}</span>
-              <span class="social-handle">{meta.handle}</span>
-            </div>
-          </a>
-        );
-      })}
+            [ Open stack.yml ]
+          </button>
+        </div>
+      </div>
+
+      <div class="env_card glassmorphism">
+        <DiscordProfileIsland
+          client:load
+          discordId={discordId}
+          username={discordUsername}
+          displayName={heroName}
+          fallbackTag={discordTag}
+        />
+      </div>
+
+      <div class="player_card glassmorphism">
+        <div class="player_header">
+          <span class="hero_title">player.sh</span>
+        </div>
+        <MusicWidgetIsland
+          client:load
+          username={lastFmUser}
+          apiKey={lastFmApiKey}
+          ytmusicUrl={ytmusicUrl}
+          preferredProvider={musicProvider}
+          backendUrl={backendUrl}
+        />
+      </div>
+
+      {/* ── Project Cards (clickable → open modal) ── */}
+      {projectCards.map((project) => (
+        <button
+          type="button"
+          class="project_card glassmorphism"
+          data-modal-target={project.dialogId}
+          aria-label={`Open ${project.title} details`}
+        >
+          <span class="project_title">{project.title}</span>
+          <p class="project_description">{project.description}</p>
+          {project.status && (
+            <span class="project_status" data-status={project.status}>
+              {statusLabels[project.status]}
+            </span>
+          )}
+        </button>
+      ))}
+
+
+
+      <hr class="social-divider" />
+
+      <div class="socials-container">
+        {socials.map((social) => {
+          const meta = getSocialMeta(social.url, social.platform);
+          return (
+            <a
+              class="social-card glassmorphism"
+              href={meta.url}
+              target="_blank"
+              rel="noreferrer"
+              title={meta.title}
+            >
+              <img
+                src={meta.iconUrl}
+                alt={meta.platform}
+                class="social-icon"
+                loading="lazy"
+                onerror={`this.onerror=null; this.src='${meta.fallbackFavicon}';`}
+              />
+              <div class="social-info">
+                <span class="social-title">{meta.title}</span>
+                <span class="social-handle">{meta.handle}</span>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </section>
+  </main>
+
+  {/* ── Project Modals (Reusable <ProjectModal /> with native <dialog>) ── */}
+  {projectCards.map((project) => (
+    <ProjectModal
+      id={project.dialogId}
+      title={project.title}
+      contentHtml={project.contentHtml}
+      status={project.status ? statusLabels[project.status] : null}
+      statusCode={project.status}
+      githubLink={project.githubLink}
+    />
+  ))}
+
+  {/* ── Stack Modal (Reusable <ProjectModal />) ── */}
+  <ProjectModal id="modal-stack" title="Technology Stack">
+    <div class="modal_body">
+      {stackGroups.map((group) =>
+        group.names.length > 0 && (
+          <div class="stack_group">
+            <h3 class="stack_group_label">{group.label}</h3>
+            <ul class="stack_list">
+              {group.names.map((name) => (
+                <li class="stack_chip">{name}</li>
+              ))}
+            </ul>
+          </div>
+        )
+      )}
     </div>
-  </section>
+  </ProjectModal>
 </Layout>
 
 <style>
-  /* ── Scoped overrides (page-level only) ── */
-
-  .project_card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    padding: 1.5rem;
+  /* ── Stack inside Modal ── */
+  .stack_group {
+    margin-bottom: 1.25rem;
   }
 
-  .project_title {
-    font-size: 1.35rem;
+  .stack_group_label {
+    font-size: 0.8rem;
     font-weight: 600;
-  }
-
-  .project_description {
-    color: #b0b0b0;
-    font-size: 0.95rem;
-    line-height: 1.5;
-  }
-
-  .project_status {
-    font-size: 0.75rem;
     text-transform: uppercase;
-    letter-spacing: 0.15em;
-    opacity: 0.6;
-    align-self: flex-start;
+    letter-spacing: 0.12em;
+    color: #c084fc;
+    margin-bottom: 0.5rem;
+  }
+
+  .stack_list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .stack_chip {
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: #d8b4fe;
+    font-size: 0.78rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    white-space: nowrap;
   }
 </style>
-
-

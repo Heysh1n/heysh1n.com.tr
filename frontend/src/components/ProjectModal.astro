@@ -1,0 +1,301 @@
+---
+import { renderProjectContent } from '../utils/markdown';
+import 'katex/dist/katex.min.css';
+
+interface Props {
+  id: string;
+  title: string;
+  description?: string | null;
+  markdownContent?: unknown;
+  contentHtml?: string | null;
+  status?: string | null;
+  statusCode?: string | null;
+  githubLink?: string | null;
+}
+
+const {
+  id,
+  title,
+  description,
+  markdownContent,
+  contentHtml,
+  status,
+  statusCode,
+  githubLink,
+} = Astro.props;
+
+// Контент рендерится строго на этапе Astro SSG сборки (Zero Client JS)
+const renderedHtml = markdownContent
+  ? renderProjectContent(markdownContent)
+  : (contentHtml || '');
+---
+
+<dialog id={id} class="modal glassmorphism" aria-labelledby={`${id}-title`}>
+  <div class="modal_inner">
+    <div class="modal_header">
+      <div class="modal_header_info">
+        <h2 id={`${id}-title`} class="modal_title">{title}</h2>
+        {status && (
+          <span class="project_status" data-status={statusCode || ''}>
+            {status}
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        class="modal_close"
+        data-modal-close
+        aria-label={`Закрыть ${title}`}
+      >
+        ✕
+      </button>
+    </div>
+
+    {description && <p class="modal_description">{description}</p>}
+
+    {renderedHtml && (
+      <div class="modal_body markdown-body" set:html={renderedHtml} />
+    )}
+
+    <slot />
+
+    {githubLink && (
+      <div class="modal_footer">
+        <a
+          href={githubLink}
+          target="_blank"
+          rel="noreferrer"
+          class="modal_link"
+        >
+          View on GitHub →
+        </a>
+      </div>
+    )}
+  </div>
+</dialog>
+
+<style>
+  /* ── Native <dialog> Modal styling with Glassmorphism ── */
+  dialog.modal {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: min(92vw, 680px);
+    max-height: min(85vh, 85dvh);
+    padding: 0;
+    border: 1px solid rgba(196, 140, 255, 0.35);
+    border-radius: 16px;
+    background: rgba(18, 5, 24, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: #e2e8f0;
+    box-shadow:
+      0 24px 64px 0 rgba(0, 0, 0, 0.65),
+      0 0 32px rgba(168, 85, 247, 0.25);
+    overflow: hidden;
+    outline: none;
+    opacity: 0;
+    transform: scale(0.96);
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                overlay 0.2s allow-discrete,
+                display 0.2s allow-discrete;
+  }
+
+  dialog.modal[open] {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  @starting-style {
+    dialog.modal[open] {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  /* ── Darkened backdrop with blur ── */
+  dialog.modal::backdrop {
+    background: rgba(8, 2, 14, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.2s ease,
+                overlay 0.2s allow-discrete,
+                display 0.2s allow-discrete;
+  }
+
+  dialog.modal[open]::backdrop {
+    opacity: 1;
+  }
+
+  @starting-style {
+    dialog.modal[open]::backdrop {
+      opacity: 0;
+    }
+  }
+
+  .modal_inner {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: clamp(1.25rem, 1rem + 2vw, 2.25rem);
+    overflow-y: auto;
+    max-height: min(85vh, 85dvh);
+    box-sizing: border-box;
+  }
+
+  .modal_header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    border-bottom: 1px solid rgba(196, 140, 255, 0.2);
+    padding-bottom: 1rem;
+  }
+
+  .modal_header_info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .modal_title {
+    font-size: clamp(1.25rem, 1.1rem + 1vw, 1.75rem);
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 0 12px rgba(196, 140, 255, 0.5);
+    margin: 0;
+  }
+
+  .modal_description {
+    color: #a1a1aa;
+    font-size: clamp(0.9rem, 0.85rem + 0.3vw, 1rem);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .modal_close {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #c084fc;
+    font-size: 1.15rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  }
+
+  .modal_close:hover {
+    background: rgba(168, 85, 247, 0.25);
+    color: #ffffff;
+    transform: scale(1.05);
+  }
+
+  .modal_close:active {
+    transform: scale(0.95);
+  }
+
+  .modal_body {
+    font-size: clamp(0.85rem, 0.8rem + 0.25vw, 0.95rem);
+    line-height: 1.65;
+    color: #d4d4d8;
+  }
+
+  .modal_footer {
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(196, 140, 255, 0.15);
+  }
+
+  .modal_link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #c084fc;
+    font-size: 0.9rem;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.15s ease, transform 0.15s ease;
+  }
+
+  .modal_link:hover {
+    color: #ffffff;
+    transform: translateX(2px);
+  }
+</style>
+
+<script>
+  // Единое глобальное делегирование событий для модальных окон
+  const setupModalDelegation = () => {
+    if ((window as any).__projectModalHandlerAttached) return;
+    (window as any).__projectModalHandlerAttached = true;
+
+    // 1. Открытие модалок по клику на любой триггер с [data-modal-target]
+    document.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      const openTrigger = target.closest<HTMLElement>('[data-modal-target]');
+      if (openTrigger) {
+        const dialogId = openTrigger.dataset.modalTarget;
+        if (dialogId) {
+          const dialog = document.getElementById(dialogId) as HTMLDialogElement | null;
+          if (dialog && typeof dialog.showModal === 'function') {
+            dialog.showModal();
+            document.body.style.overflow = 'hidden';
+          }
+        }
+        return;
+      }
+
+      // 2. Закрытие по клику на кнопку [data-modal-close]
+      const closeTrigger = target.closest<HTMLElement>('[data-modal-close]');
+      if (closeTrigger) {
+        const dialog = closeTrigger.closest('dialog');
+        dialog?.close();
+        return;
+      }
+
+      // 3. Закрытие по клику на затемненный backdrop (вне пределов inner bounding rect)
+      if (target.tagName === 'DIALOG') {
+        const dialog = target as HTMLDialogElement;
+        if (dialog.open) {
+          const rect = dialog.getBoundingClientRect();
+          const clickedInside =
+            rect.top <= event.clientY &&
+            event.clientY <= rect.top + rect.height &&
+            rect.left <= event.clientX &&
+            event.clientX <= rect.left + rect.width;
+
+          if (!clickedInside) {
+            dialog.close();
+          }
+        }
+      }
+    });
+
+    // 4. Восстановление скролла при закрытии диалога (через Esc или .close())
+    document.addEventListener(
+      'close',
+      (event) => {
+        if ((event.target as HTMLElement)?.tagName === 'DIALOG') {
+          const hasRemainingOpen = Array.from(document.querySelectorAll('dialog')).some(
+            (d) => d.open
+          );
+          if (!hasRemainingOpen) {
+            document.body.style.removeProperty('overflow');
+          }
+        }
+      },
+      true
+    );
+  };
+
+  setupModalDelegation();
+  document.addEventListener('astro:page-load', setupModalDelegation);
+</script>

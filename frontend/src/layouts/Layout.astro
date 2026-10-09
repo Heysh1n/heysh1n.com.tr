@@ -1,9 +1,19 @@
 ---
 import '../styles/global.css';
+import DynamicFavicon from '../components/DynamicFavicon.astro';
 
-const title = 'Heysh1n | Workspace';
-const description =
-  'Dark bento workspace for Heysh1n, a backend engineer focused on systems tooling, Linux workflows, networking, and hardware-backed automation.';
+interface Props {
+  title?: string;
+  description?: string;
+  discordId?: string;
+}
+
+const {
+  title = 'Heysh1n | Workspace',
+  description = 'Dark bento workspace for Heysh1n, a backend engineer focused on systems tooling, Linux workflows, networking, and hardware-backed automation.',
+  discordId = '995737379417640961',
+} = Astro.props;
+
 const siteUrl = 'https://heysh1n.com.tr/';
 const imageUrl = `${siteUrl}shell.jpg`;
 ---
@@ -22,6 +32,7 @@ const imageUrl = `${siteUrl}shell.jpg`;
     <link rel="canonical" href={siteUrl} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" />
+    <DynamicFavicon discordId={discordId} defaultIcon="/favicon.svg" />
     <link rel="preload" as="image" href="/shell.jpg" type="image/jpeg" fetchpriority="high" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Heysh1n" />
@@ -35,7 +46,7 @@ const imageUrl = `${siteUrl}shell.jpg`;
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={imageUrl} />
   </head>
-  <body class="relative h-auto w-screen overflow-y-auto bg-neutral-950 text-neutral-400 antialiased flex items-center justify-center md:h-screen md:w-screen md:overflow-hidden">
+  <body class="relative min-h-screen w-full overflow-y-auto bg-neutral-950 text-neutral-400 antialiased flex flex-col items-center justify-start">
     <div aria-hidden="true" class="pointer-events-none bg-[url('/shell.jpg')] bg-cover bg-center bg-no-repeat fixed inset-0 -z-20 opacity-10 mix-blend-overlay"></div>
     <div aria-hidden="true" class="pointer-events-none fixed inset-0 z-50 h-full w-full bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20"></div>
     <div aria-hidden="true" class="pointer-events-none fixed inset-0 z-40 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(10,10,10,0.8)_100%)]"></div>
