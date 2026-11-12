@@ -1,8 +1,10 @@
 import type { Endpoint } from 'payload'
 
+const AUTHORIZE_ENDPOINT = 'https://accounts.spotify.com/authorize'
 const TOKEN_ENDPOINT = 'https://accounts.spotify.com/api/token'
 const NOW_PLAYING_ENDPOINT = 'https://api.spotify.com/v1/me/player/currently-playing'
 const RECENTLY_PLAYED_ENDPOINT = 'https://api.spotify.com/v1/me/player/recently-played?limit=1'
+const SCOPES = 'user-read-currently-playing user-read-recently-played'
 
 type SpotifyTrackItem = {
   name?: string
@@ -22,6 +24,20 @@ let cachedToken: {
   expiresAt: number
 } | null = null
 
+let currentRefreshToken: string | null = null
+
+const getRefreshTokenValue = (): string | null => {
+  if (currentRefreshToken) {
+    return currentRefreshToken
+  }
+  const envToken = process.env.SPOTIFY_REFRESH_TOKEN?.trim()
+  if (envToken && envToken !== '...' && envToken !== 'your-spotify-refresh-token') {
+    currentRefreshToken = envToken
+    return currentRefreshToken
+  }
+  return null
+}
+
 const getAccessToken = async (): Promise<string | null> => {
   if (cachedToken && Date.now() < cachedToken.expiresAt) {
     return cachedToken.accessToken
@@ -29,38 +45,54 @@ const getAccessToken = async (): Promise<string | null> => {
 
   const clientId = process.env.SPOTIFY_CLIENT_ID?.trim()
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET?.trim()
-  const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN?.trim()
+  const refreshToken = getRefreshTokenValue()
 
-  if (!clientId || !clientSecret || !refreshToken) {
+  if (!clientId || !refreshToken) {
     return null
   }
 
-  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  }
+
+  if (clientSecret) {
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+    headers.Authorization = `Basic ${basicAuth}`
+  }
 
   const response = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers,
     body: new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
-    }).toString(),
+      client_id: clientId,
+    }),
     signal: AbortSignal.timeout(8000),
   })
 
-  if (!response.ok) {
-    return null
+  const data = (await response.json().catch(() => ({}))) as {
+    access_token?: string
+    refresh_token?: string
+    expires_in?: number
+    error?: string
   }
 
-  const data = (await response.json()) as {
-    access_token?: string
-    expires_in?: number
+  if (!response.ok) {
+    if (data.error === 'invalid_grant') {
+      cachedToken = null
+      currentRefreshToken = null
+    }
+    return null
   }
 
   if (!data.access_token) {
     return null
+  }
+
+  // If Spotify rotates the refresh_token, keep the new one in memory
+  if (data.refresh_token) {
+    currentRefreshToken = data.refresh_token
   }
 
   const ttlMs = ((data.expires_in ?? 3600) - 60) * 1000
@@ -149,6 +181,122 @@ export const spotifyNowPlayingEndpoint: Endpoint = {
     } catch {
       return Response.json({ isPlaying: false }, { status: 200, headers: responseHeaders })
     }
+  },
+}
+
+/**
+ * Helper endpoint (dev / initial setup only) to obtain SPOTIFY_REFRESH_TOKEN:
+ * Open /api/spotify/login in browser -> authorizes Spotify -> redirects to /api/spotify/callback
+ */
+export const spotifyLoginEndpoint: Endpoint = {
+  method: 'get',
+  path: '/spotify/login',
+  handler: (req) => {
+    if (process.env.NODE_ENV === 'production' && getRefreshTokenValue()) {
+      return Response.json({ error: 'Not available in production' }, { status: 403 })
+    }
+
+    const clientId = process.env.SPOTIFY_CLIENT_ID?.trim()
+    if (!clientId) {
+      return Response.json({ error: 'SPOTIFY_CLIENT_ID is not set in .env' }, { status: 400 })
+    }
+
+    const serverUrl = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://127.0.0.1:3000').replace(
+      /\/+$/,
+      '',
+    )
+    const redirectUri =
+      process.env.SPOTIFY_REDIRECT_URI?.trim() || `${serverUrl}/api/spotify/callback`
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      scope: SCOPES,
+      redirect_uri: redirectUri,
+    })
+
+    const reqUrl = req.url || `${serverUrl}/api/spotify/login`
+    return Response.redirect(new URL(`${AUTHORIZE_ENDPOINT}?${params.toString()}`, reqUrl), 302)
+  },
+}
+
+export const spotifyCallbackEndpoint: Endpoint = {
+  method: 'get',
+  path: '/spotify/callback',
+  handler: async (req) => {
+    if (process.env.NODE_ENV === 'production' && getRefreshTokenValue()) {
+      return Response.json({ error: 'Not available in production' }, { status: 403 })
+    }
+
+    const url = new URL(req.url || 'http://127.0.0.1:3000/api/spotify/callback')
+    const code = url.searchParams.get('code')
+
+    if (!code) {
+      return Response.json({ error: 'Missing authorization code' }, { status: 400 })
+    }
+
+    const clientId = process.env.SPOTIFY_CLIENT_ID?.trim()
+    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET?.trim()
+
+    if (!clientId || !clientSecret) {
+      return Response.json(
+        { error: 'SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET is missing in .env' },
+        { status: 400 },
+      )
+    }
+
+    const serverUrl = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://127.0.0.1:3000').replace(
+      /\/+$/,
+      '',
+    )
+    const redirectUri =
+      process.env.SPOTIFY_REDIRECT_URI?.trim() || `${serverUrl}/api/spotify/callback`
+
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+
+    const response = await fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+      }),
+    })
+
+    const data = (await response.json().catch(() => ({}))) as {
+      access_token?: string
+      refresh_token?: string
+      expires_in?: number
+      error?: string
+      error_description?: string
+    }
+
+    if (!response.ok || !data.refresh_token) {
+      return Response.json(
+        { error: data.error || 'Failed to exchange code', details: data.error_description },
+        { status: 400 },
+      )
+    }
+
+    currentRefreshToken = data.refresh_token
+    if (data.access_token) {
+      cachedToken = {
+        accessToken: data.access_token,
+        expiresAt: Date.now() + ((data.expires_in ?? 3600) - 60) * 1000,
+      }
+    }
+
+    return Response.json(
+      {
+        message: 'Copy this refresh_token into your backend/.env as SPOTIFY_REFRESH_TOKEN',
+        SPOTIFY_REFRESH_TOKEN: data.refresh_token,
+      },
+      { status: 200, headers: responseHeaders },
+    )
   },
 }
 

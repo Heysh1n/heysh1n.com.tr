@@ -17,7 +17,11 @@ import {
   updateManifestEndpoint,
   validateLicenseEndpoint,
 } from './endpoints/sfcp'
-import { spotifyNowPlayingEndpoint } from './endpoints/spotify'
+import {
+  spotifyCallbackEndpoint,
+  spotifyLoginEndpoint,
+  spotifyNowPlayingEndpoint,
+} from './endpoints/spotify'
 import { HomePage } from './globals/HomePage'
 
 const filename = fileURLToPath(import.meta.url)
@@ -100,6 +104,8 @@ export default buildConfig({
     generateLicenseEndpoint,
     updateManifestEndpoint,
     spotifyNowPlayingEndpoint,
+    spotifyLoginEndpoint,
+    spotifyCallbackEndpoint,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

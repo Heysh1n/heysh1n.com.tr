@@ -66,10 +66,10 @@ nano backend/.env
 Содержимое:
 ```env
 # Подключение к базе данных PostgreSQL (Neon)
-DATABASE_URI="postgresql://neondb_owner:npg_gY5y2hNfKvoC@ep-aged-grass-a4a1p1f5-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DATABASE_URI="postgresql://user:password@ep-example-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 # Секретный ключ Payload (любая длинная случайная строка)
-PAYLOAD_SECRET="heysh1n-super-secret-key-prod-2026-x99"
+PAYLOAD_SECRET="replace-with-a-long-random-secret"
 
 # Домен сайта
 NEXT_PUBLIC_SERVER_URL=https://heysh1n.com.tr
@@ -93,7 +93,7 @@ PUBLIC_BACKEND_URL=https://heysh1n.com.tr
 
 # Last.fm (если используется)
 PUBLIC_LASTFM_USER=Heysh1n
-PUBLIC_LASTFM_API_KEY=42bf547ad2d7ae6d078dd9fee67571a3
+PUBLIC_LASTFM_API_KEY=your-lastfm-api-key
 ```
 
 ---

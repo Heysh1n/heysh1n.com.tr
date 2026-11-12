@@ -356,7 +356,7 @@ const fallbackSocials: HomePageSocial[] = [
 const enabledSocials = homePage?.socials?.filter((s) => s.enabled !== false);
 const socials = enabledSocials && enabledSocials.length > 0 ? enabledSocials : fallbackSocials;
 
-const lastFmApiKey = import.meta.env.PUBLIC_LASTFM_API_KEY || '42bf547ad2d7ae6d078dd9fee67571a3';
+const lastFmApiKey = import.meta.env.PUBLIC_LASTFM_API_KEY || '';
 const musicProvider = homePage?.music_provider || 'ytmusic';
 const ytmusicUrl = homePage?.ytmusic_url || null;
 const discordId = textOrFallback(homePage?.discord_id, fallbackHomePage.discord_id ?? '995737379417640961');
