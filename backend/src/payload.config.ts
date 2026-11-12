@@ -13,8 +13,8 @@ import { Projects } from './collections/Projects'
 import { Technologies } from './collections/Technologies'
 import {
   generateLicenseEndpoint,
+  sfcpVerifyEndpoint,
   updateManifestEndpoint,
-  validateLicenseEndpoint,
 } from './endpoints/sfcp'
 import { HomePage } from './globals/HomePage'
 
@@ -90,7 +90,7 @@ export default buildConfig({
   },
   collections: [Users, Media, Projects, Technologies, AccessKeys, KeyLogs],
   globals: [HomePage],
-  endpoints: [validateLicenseEndpoint, generateLicenseEndpoint, updateManifestEndpoint],
+  endpoints: [sfcpVerifyEndpoint, generateLicenseEndpoint, updateManifestEndpoint],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
