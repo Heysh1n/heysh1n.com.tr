@@ -72,6 +72,8 @@ const securityCards: DashboardCard[] = [
   },
 ]
 
+const liveSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://heysh1n.com.tr'
+
 export const AdminDashboard = () => (
   <main
     style={{
@@ -139,9 +141,9 @@ export const AdminDashboard = () => (
         {/* Live Site Shortcut */}
         <div>
           <a
-            href="http://localhost:4321"
+            href={liveSiteUrl}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             style={{
               alignItems: 'center',
               background: 'linear-gradient(135deg, #7e22ce 0%, #a855f7 100%)',
