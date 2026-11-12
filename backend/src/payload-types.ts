@@ -220,11 +220,19 @@ export interface Technology {
  */
 export interface AccessKey {
   id: number;
-  key: string;
+  keyName: string;
+  /**
+   * License key used by SFCP clients. Leave blank on creation to auto-generate (SFCP-YEAR-NAME-DDMM).
+   */
+  license_key?: string | null;
+  status: 'active' | 'inactive' | 'revoked';
+  /**
+   * Bound automatically on first successful validation.
+   */
   hwid?: string | null;
-  status: 'active' | 'revoked' | 'expired';
   expiresAt?: string | null;
-  owner?: string | null;
+  lastValidatedAt?: string | null;
+  associatedProject?: (number | null) | Project;
   updatedAt: string;
   createdAt: string;
 }
@@ -409,11 +417,13 @@ export interface TechnologiesSelect<T extends boolean = true> {
  * via the `definition` "access-keys_select".
  */
 export interface AccessKeysSelect<T extends boolean = true> {
-  key?: T;
-  hwid?: T;
+  keyName?: T;
+  license_key?: T;
   status?: T;
+  hwid?: T;
   expiresAt?: T;
-  owner?: T;
+  lastValidatedAt?: T;
+  associatedProject?: T;
   updatedAt?: T;
   createdAt?: T;
 }

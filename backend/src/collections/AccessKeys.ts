@@ -1,81 +1,148 @@
-import type { Access, CollectionConfig } from 'payload'
+import type { CollectionBeforeChangeHook, CollectionConfig } from 'payload'
 
-export type AccessKeyStatus = 'active' | 'revoked' | 'expired'
+import type { ProjectDocument } from './Projects'
+import { isAdminOrOwner, isOwner } from './Users'
+
+export type AccessKeyStatus = 'active' | 'inactive' | 'revoked'
 
 export interface AccessKeyDocument {
   id: number | string
-  key: string
+  keyName: string
+  license_key: string
+  status?: AccessKeyStatus | null
   hwid?: string | null
-  status: AccessKeyStatus
   expiresAt?: string | null
-  owner?: string | null
+  lastValidatedAt?: string | null
+  associatedProject?: number | string | ProjectDocument | null
 }
 
-const isAdmin: Access = ({ req: { user } }) => {
-  if (!user) return false
+const accessKeyStatusOptions = [
+  { label: 'Active', value: 'active' },
+  { label: 'Inactive', value: 'inactive' },
+  { label: 'Revoked', value: 'revoked' },
+] satisfies Array<{ label: string; value: AccessKeyStatus }>
 
-  const roleUser = user as { role?: unknown; roles?: unknown }
+/**
+ * Generates a deterministic license key in the format: SFCP-{YEAR}-{NAME}-{DDMM}
+ *
+ * - {YEAR}  — current year (e.g. 2026)
+ * - {NAME}  — keyName stripped to latin alphanumerics, uppercased, truncated to 6 chars.
+ *             Falls back to "USER" if empty after sanitization.
+ * - {DDMM}  — current day + month, zero-padded.
+ */
+const generateLicenseKey = (keyName: string | undefined | null): string => {
+  const now = new Date()
+  const year = now.getFullYear()
 
-  if (Array.isArray(roleUser.roles)) {
-    return roleUser.roles.includes('admin') || roleUser.roles.includes('owner')
+  const sanitized = (keyName ?? '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, 6)
+
+  const namePart = sanitized.length > 0 ? sanitized : 'USER'
+
+  const day = String(now.getDate()).padStart(2, '0')
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+
+  return `SFCP-${year}-${namePart}-${day}${month}`
+}
+
+const autoGenerateLicenseKey: CollectionBeforeChangeHook = ({ data, operation }) => {
+  if (operation === 'create' && (!data?.license_key || data.license_key.trim().length === 0)) {
+    return {
+      ...data,
+      license_key: generateLicenseKey(data?.keyName as string | undefined),
+    }
   }
 
-  if (typeof roleUser.role === 'string') {
-    return roleUser.role === 'admin' || roleUser.role === 'owner'
-  }
-
-  return true
+  return data
 }
 
 export const AccessKeys: CollectionConfig = {
   slug: 'access-keys',
-  admin: {
-    useAsTitle: 'key',
-    group: 'SFCP',
-    defaultColumns: ['key', 'status', 'hwid', 'owner', 'expiresAt'],
-  },
   access: {
-    read: isAdmin,
-    create: isAdmin,
-    update: isAdmin,
-    delete: isAdmin,
+    read: isAdminOrOwner,
+    create: isOwner,
+    update: isOwner,
+    delete: isOwner,
+  },
+  labels: {
+    singular: 'Access Key',
+    plural: 'Access Keys',
+  },
+  admin: {
+    useAsTitle: 'keyName',
+    group: 'SFCP',
+    defaultColumns: ['keyName', 'license_key', 'status', 'hwid', 'lastValidatedAt'],
   },
   typescript: {
     interface: 'AccessKey',
   },
+  hooks: {
+    beforeChange: [autoGenerateLicenseKey],
+  },
   fields: [
     {
-      name: 'key',
+      name: 'keyName',
       type: 'text',
       required: true,
-      unique: true,
-      index: true,
     },
     {
-      name: 'hwid',
+      name: 'license_key',
       type: 'text',
-      required: false,
+      unique: true,
+      index: true,
+      admin: {
+        description:
+          'License key used by SFCP clients. Leave blank on creation to auto-generate (SFCP-YEAR-NAME-DDMM).',
+      },
     },
     {
       name: 'status',
       type: 'select',
-      required: true,
+      options: accessKeyStatusOptions,
       defaultValue: 'active',
-      options: [
-        { label: 'Active', value: 'active' },
-        { label: 'Revoked', value: 'revoked' },
-        { label: 'Expired', value: 'expired' },
-      ],
+      required: true,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'hwid',
+      type: 'text',
+      admin: {
+        description: 'Bound automatically on first successful validation.',
+        position: 'sidebar',
+      },
     },
     {
       name: 'expiresAt',
       type: 'date',
+      admin: {
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
+        position: 'sidebar',
+      },
     },
     {
-      name: 'owner',
-      type: 'text',
+      name: 'lastValidatedAt',
+      type: 'date',
+      admin: {
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
+        readOnly: true,
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'associatedProject',
+      type: 'relationship',
+      relationTo: 'projects',
+      admin: {
+        position: 'sidebar',
+      },
     },
   ],
 }
-
-export default AccessKeys

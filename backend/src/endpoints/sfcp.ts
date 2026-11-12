@@ -1,7 +1,12 @@
-import { randomBytes } from 'crypto'
-import type { Endpoint, PayloadRequest } from 'payload'
+import { createHash, randomBytes, timingSafeEqual } from 'crypto'
+import type { Endpoint } from 'payload'
 
 import type { AccessKey } from '../payload-types'
+
+type ValidateRequestBody = {
+  hash?: unknown
+  hwid?: unknown
+}
 
 export type VerifyLicenseRequestBody = {
   key?: unknown
@@ -9,28 +14,37 @@ export type VerifyLicenseRequestBody = {
 }
 
 type GenerateRequestBody = {
+  associatedProject?: unknown
   expiresAt?: unknown
-  owner?: unknown
-  key?: unknown
+  keyName?: unknown
 }
 
-type ExpressLikeResponse = {
-  status?: (code: number) => {
-    json: (body: unknown) => unknown
+const HASH_SALT = 'x9!kQ#mZ$vR7@pL2&wN5'
+const EXPECTED_AGENT = 'secure-client-v1'
+
+const computeExpectedHash = (key: string, hwid: string): string =>
+  createHash('sha256')
+    .update(key + hwid + HASH_SALT)
+    .digest('hex')
+
+const safeEqual = (a: string, b: string): boolean => {
+  const bufA = Buffer.from(a, 'utf8')
+  const bufB = Buffer.from(b, 'utf8')
+
+  if (bufA.length !== bufB.length) {
+    return false
   }
+
+  return timingSafeEqual(bufA, bufB)
 }
 
-const sendJson = (body: unknown, status = 200, res?: ExpressLikeResponse): Response => {
-  if (res && typeof res.status === 'function') {
-    res.status(status).json(body)
-  }
+const json = (body: unknown, init?: ResponseInit) => Response.json(body, init)
 
-  return Response.json(body, { status })
-}
-
-const readJsonBody = async <T>(
-  req: PayloadRequest & { body?: unknown; data?: unknown },
-): Promise<T> => {
+const readJsonBody = async <T>(req: {
+  body?: unknown
+  data?: unknown
+  json?: () => Promise<unknown>
+}): Promise<T> => {
   if (req.body && typeof req.body === 'object') {
     return req.body as T
   }
@@ -53,6 +67,20 @@ const readJsonBody = async <T>(
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0
 
+const parseRelationshipId = (value: unknown) => {
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    return value
+  }
+
+  if (isNonEmptyString(value)) {
+    const id = Number(value)
+
+    return Number.isInteger(id) ? id : undefined
+  }
+
+  return undefined
+}
+
 const createLicenseKey = () => {
   const raw = randomBytes(16).toString('hex').toUpperCase()
   const chunks = raw.match(/.{1,4}/g) ?? [raw]
@@ -60,22 +88,137 @@ const createLicenseKey = () => {
   return `SFCP-${chunks.join('-')}`
 }
 
+const extractClientIp = (req: { headers?: Headers }): string => {
+  const forwarded = req.headers?.get?.('x-forwarded-for')
+
+  if (forwarded) {
+    const first = forwarded.split(',')[0]?.trim()
+
+    if (first && first.length > 0) {
+      return first
+    }
+  }
+
+  return 'unknown'
+}
+
+export const validateLicenseEndpoint: Endpoint = {
+  method: 'post',
+  path: '/v1/validate',
+  handler: async (req) => {
+    // ── Agent guard ──────────────────────────────────────────────────────
+    if (req.headers && typeof req.headers.get === 'function') {
+      const agent = req.headers.get('x-sfcp-agent')
+
+      if (agent !== EXPECTED_AGENT) {
+        return json({ status: 'error', message: 'Forbidden' }, { status: 403 })
+      }
+    }
+
+    // ── Body parsing ─────────────────────────────────────────────────────
+    const body = await readJsonBody<ValidateRequestBody>(req)
+    const hwid = isNonEmptyString(body.hwid) ? body.hwid.trim() : ''
+    const hash = isNonEmptyString(body.hash) ? body.hash.trim().toLowerCase() : ''
+
+    if (!hwid || !hash) {
+      return json(
+        {
+          status: 'error',
+          message: 'Missing HWID or hash.',
+        },
+        { status: 400 },
+      )
+    }
+
+    // Fetch all keys and find the one whose expected hash matches
+    const result = await req.payload.find({
+      collection: 'access-keys',
+      depth: 0,
+      limit: 0,
+      overrideAccess: true,
+    })
+
+    const license = (result.docs as AccessKey[]).find((doc) => {
+      if (!doc.license_key) return false
+      const expected = computeExpectedHash(doc.license_key.trim(), hwid)
+
+      return safeEqual(expected, hash)
+    })
+
+    if (!license || license.status === 'revoked') {
+      return json({ status: 'error', message: 'Invalid credentials' }, { status: 403 })
+    }
+
+    if (license.expiresAt) {
+      const expiresAtTime = new Date(license.expiresAt).getTime()
+      if (!Number.isNaN(expiresAtTime) && expiresAtTime < Date.now()) {
+        return json({ status: 'error', message: 'License expired' }, { status: 403 })
+      }
+    }
+
+    if (license.hwid && license.hwid !== hwid) {
+      return json(
+        { status: 'error', message: 'HWID mismatch. License linked to another device' },
+        { status: 403 },
+      )
+    }
+
+    const dataToUpdate: Partial<AccessKey> & { status?: 'active' } = {
+      lastValidatedAt: new Date().toISOString(),
+    }
+
+    if (!license.hwid) {
+      dataToUpdate.hwid = hwid
+      dataToUpdate.status = 'active'
+    }
+
+    await req.payload.update({
+      id: license.id,
+      collection: 'access-keys',
+      data: dataToUpdate,
+      overrideAccess: true,
+    })
+
+    // ── Telemetry: log the validation event ──────────────────────────────
+    if (typeof req.payload.create === 'function') {
+      try {
+        await req.payload.create({
+          collection: 'key-logs',
+          data: {
+            licenseKey: license.id,
+            hwid,
+            ipAddress: extractClientIp(req),
+          },
+          overrideAccess: true,
+        })
+      } catch (error: unknown) {
+        req.payload.logger?.error?.(
+          { err: error },
+          `[sfcp] Failed to write key-log for license ${String(license.id)}`,
+        )
+      }
+    }
+
+    return json({ status: 'ok' })
+  },
+}
+
 export const sfcpVerifyEndpoint: Endpoint = {
   method: 'post',
   path: '/sfcp/verify',
-  handler: async (req, res?: ExpressLikeResponse) => {
+  handler: async (req) => {
     const body = await readJsonBody<VerifyLicenseRequestBody>(req)
     const key = isNonEmptyString(body.key) ? body.key.trim() : ''
     const hwid = isNonEmptyString(body.hwid) ? body.hwid.trim() : ''
 
     if (!key || !hwid) {
-      return sendJson({ valid: false, error: 'Unauthorized' }, 401, res)
+      return json({ valid: false, error: 'Unauthorized' }, { status: 401 })
     }
 
     const result = await req.payload.find({
       collection: 'access-keys',
       where: {
-        key: {
+        license_key: {
           equals: key,
         },
       },
@@ -86,12 +229,10 @@ export const sfcpVerifyEndpoint: Endpoint = {
 
     const license = (result.docs as AccessKey[])[0]
 
-    // 1. If key doesn't exist or status !== 'active' -> Return 401 Unauthorized
     if (!license || license.status !== 'active') {
-      return sendJson({ valid: false, error: 'Unauthorized' }, 401, res)
+      return json({ valid: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    // 2. If expiresAt is set and in the past -> Return 401 Unauthorized (and update status to 'expired' if possible)
     if (license.expiresAt) {
       const expiresAtTime = new Date(license.expiresAt).getTime()
 
@@ -101,19 +242,18 @@ export const sfcpVerifyEndpoint: Endpoint = {
             collection: 'access-keys',
             id: license.id,
             data: {
-              status: 'expired',
+              status: 'inactive',
             },
             overrideAccess: true,
           })
         } catch {
-          // Ignore if status update fails
+          // Ignore update error
         }
 
-        return sendJson({ valid: false, error: 'License expired' }, 401, res)
+        return json({ valid: false, error: 'License expired' }, { status: 401 })
       }
     }
 
-    // 3. If hwid in DB is empty/null -> Bind the incoming hwid to this key (payload.update) and authorize
     const existingHwid = isNonEmptyString(license.hwid) ? license.hwid.trim() : ''
 
     if (!existingHwid) {
@@ -122,52 +262,57 @@ export const sfcpVerifyEndpoint: Endpoint = {
         id: license.id,
         data: {
           hwid,
+          lastValidatedAt: new Date().toISOString(),
         },
         overrideAccess: true,
       })
 
-      return sendJson({ valid: true }, 200, res)
+      return json({ valid: true }, { status: 200 })
     }
 
-    // 4. If hwid in DB exists but !== incoming hwid -> Return 403 Forbidden (HWID mismatch)
     if (existingHwid !== hwid) {
-      return sendJson({ valid: false, error: 'HWID mismatch' }, 403, res)
+      return json({ valid: false, error: 'HWID mismatch' }, { status: 403 })
     }
 
-    // Success: Return 200 OK with { "valid": true }
-    return sendJson({ valid: true }, 200, res)
+    await req.payload.update({
+      collection: 'access-keys',
+      id: license.id,
+      data: {
+        lastValidatedAt: new Date().toISOString(),
+      },
+      overrideAccess: true,
+    })
+
+    return json({ valid: true }, { status: 200 })
   },
 }
-
-export const verifyLicenseEndpoint = sfcpVerifyEndpoint
-export const validateLicenseEndpoint = sfcpVerifyEndpoint
-export const sfcpEndpoint = sfcpVerifyEndpoint
 
 export const generateLicenseEndpoint: Endpoint = {
   method: 'post',
   path: '/v1/licenses/generate',
   handler: async (req) => {
     if (!req.user) {
-      return sendJson({ status: 'error', message: 'Unauthorized.' }, 401)
+      return json({ status: 'error', message: 'Unauthorized.' }, { status: 401 })
     }
 
     const body = await readJsonBody<GenerateRequestBody>(req)
-    const owner = isNonEmptyString(body.owner) ? body.owner.trim() : undefined
+    const keyName = isNonEmptyString(body.keyName) ? body.keyName.trim() : 'SFCP License'
     const expiresAt = isNonEmptyString(body.expiresAt) ? body.expiresAt : undefined
-    const key = isNonEmptyString(body.key) ? body.key.trim() : createLicenseKey()
+    const associatedProject = parseRelationshipId(body.associatedProject)
 
     const license = await req.payload.create({
       collection: 'access-keys',
       data: {
+        associatedProject,
         expiresAt,
-        owner,
-        key,
+        keyName,
+        license_key: createLicenseKey(),
         status: 'active',
       },
       overrideAccess: true,
     })
 
-    return sendJson({
+    return json({
       status: 'ok',
       license,
     })
@@ -178,7 +323,7 @@ export const updateManifestEndpoint: Endpoint = {
   method: 'get',
   path: '/sfcp/update.json',
   handler: () =>
-    Response.json(
+    json(
       {
         product: 'sfcp',
         version: process.env.SFCP_LATEST_VERSION || '0.0.0',
@@ -193,5 +338,3 @@ export const updateManifestEndpoint: Endpoint = {
       },
     ),
 }
-
-export default sfcpVerifyEndpoint

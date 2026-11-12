@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { isAdminOrOwner } from './Users'
+import { triggerCloudflareDeploy } from '../hooks/triggerCloudflareDeploy'
 
 export type TechnologyCategory = 'os_tools' | 'languages' | 'networks' | 'game_servers'
 
@@ -34,6 +35,9 @@ export const Technologies: CollectionConfig = {
   },
   typescript: {
     interface: 'Technology',
+  },
+  hooks: {
+    afterChange: [triggerCloudflareDeploy],
   },
   fields: [
     {

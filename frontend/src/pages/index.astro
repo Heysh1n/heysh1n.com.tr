@@ -68,17 +68,7 @@ const isProd = import.meta.env.PROD;
 const rawBackendUrl =
   import.meta.env.PUBLIC_BACKEND_URL ||
   import.meta.env.BACKEND_URL ||
-  (isProd ? '' : 'http://localhost:3000');
-
-if (!rawBackendUrl) {
-  if (isProd) {
-    throw new Error(
-      '❌ [SSG Build Error] PUBLIC_BACKEND_URL is not configured for production build! Please add PUBLIC_BACKEND_URL in Cloudflare Dashboard: Settings -> Build -> Build variables and secrets.'
-    );
-  } else {
-    console.warn('⚠️ [Dev Warning] PUBLIC_BACKEND_URL is not set, falling back to http://localhost:3000');
-  }
-}
+  (isProd ? 'https://api.heysh1n.com.tr' : 'http://localhost:3000');
 
 const backendUrl = rawBackendUrl.replace(/\/+$/, '');
 console.log(`[Payload SSG] Fetching data for static build from: ${backendUrl}`);

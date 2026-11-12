@@ -15,7 +15,9 @@ import {
   generateLicenseEndpoint,
   sfcpVerifyEndpoint,
   updateManifestEndpoint,
+  validateLicenseEndpoint,
 } from './endpoints/sfcp'
+import { spotifyNowPlayingEndpoint } from './endpoints/spotify'
 import { HomePage } from './globals/HomePage'
 
 const filename = fileURLToPath(import.meta.url)
@@ -31,8 +33,10 @@ const allowedOrigins = Array.from(
     serverURL,
     'https://heysh1n.com.tr',
     'https://www.heysh1n.com.tr',
+    'https://api.heysh1n.com.tr',
     'http://heysh1n.com.tr',
     'http://www.heysh1n.com.tr',
+    'http://api.heysh1n.com.tr',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://localhost:4321',
@@ -90,7 +94,13 @@ export default buildConfig({
   },
   collections: [Users, Media, Projects, Technologies, AccessKeys, KeyLogs],
   globals: [HomePage],
-  endpoints: [sfcpVerifyEndpoint, generateLicenseEndpoint, updateManifestEndpoint],
+  endpoints: [
+    validateLicenseEndpoint,
+    sfcpVerifyEndpoint,
+    generateLicenseEndpoint,
+    updateManifestEndpoint,
+    spotifyNowPlayingEndpoint,
+  ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

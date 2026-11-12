@@ -1,6 +1,7 @@
 import type { GlobalConfig } from 'payload'
 
 import { isAdminOrOwner } from '../collections/Users'
+import { triggerCloudflareDeployGlobal } from '../hooks/triggerCloudflareDeploy'
 
 export interface HomePageSocial {
   platform: string
@@ -33,6 +34,9 @@ export const HomePage: GlobalConfig = {
   },
   typescript: {
     interface: 'HomePage',
+  },
+  hooks: {
+    afterChange: [triggerCloudflareDeployGlobal],
   },
   fields: [
     {

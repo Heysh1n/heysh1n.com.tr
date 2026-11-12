@@ -9,6 +9,15 @@ interface MusicWidgetIslandProps {
   backendUrl?: string;
 }
 
+type SpotifyResponse = {
+  isPlaying?: boolean;
+  title?: string;
+  artist?: string;
+  album?: string;
+  albumArt?: string | null;
+  trackUrl?: string | null;
+};
+
 type TrackData = {
   name: string;
   artist: string;
@@ -20,54 +29,26 @@ type TrackData = {
 
 const AUDIO_SRC = '/assets/audio/ambient.mp3';
 const DEFAULT_COVER = '/assets/bg/music_thumbnail.svg';
+const POLL_INTERVAL_MS = 15000;
+const FETCH_TIMEOUT_MS = 8000;
 
-export default function MusicWidgetIsland({
-  discordId,
-  username,
-  apiKey,
-  ytmusicUrl,
-  backendUrl,
-}: MusicWidgetIslandProps) {
+const IDLE_TRACK: TrackData = {
+  name: 'Not Playing',
+  artist: 'Spotify — Offline',
+  cover: DEFAULT_COVER,
+  badge: 'OFFLINE',
+  isPlaying: false,
+};
+
+export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps) {
   const [trackData, setTrackData] = useState<TrackData>({
-    name: 'Loading...',
-    artist: 'Connecting to cascade...',
+    name: 'Connecting...',
+    artist: 'Spotify Web API',
     cover: DEFAULT_COVER,
-    badge: 'SEARCHING',
+    badge: 'SYNCING',
     isPlaying: false,
   });
 
-  const lanyardTrackRef = useRef<TrackData | null>(null);
-  const lastFmTrackRef = useRef<TrackData | null>(null);
-  const apiTrackRef = useRef<TrackData | null>(null);
-  const staticTrackRef = useRef<TrackData | null>(null);
-
-  const resolveCascade = () => {
-    if (lanyardTrackRef.current?.isPlaying) {
-      setTrackData(lanyardTrackRef.current);
-      return;
-    }
-    if (lastFmTrackRef.current?.isPlaying) {
-      setTrackData(lastFmTrackRef.current);
-      return;
-    }
-    if (apiTrackRef.current?.isPlaying) {
-      setTrackData(apiTrackRef.current);
-      return;
-    }
-    if (staticTrackRef.current) {
-      setTrackData(staticTrackRef.current);
-      return;
-    }
-    setTrackData({
-      name: 'No active tracking',
-      artist: 'Waiting for activity...',
-      cover: DEFAULT_COVER,
-      badge: 'IDLE',
-      isPlaying: false,
-    });
-  };
-
-  // Ambient Audio
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -94,213 +75,62 @@ export default function MusicWidgetIsland({
     };
   }, []);
 
-  // 1. Lanyard WebSocket (Core)
   useEffect(() => {
-    if (!discordId) return;
-    let ws: WebSocket;
-    let heartbeatInterval: number;
-    let reconnectTimeout: number;
-    let isSubscribed = true;
+    let isMounted = true;
 
-    const connect = () => {
-      ws = new WebSocket('wss://api.lanyard.rest/socket');
+    const rawBase =
+      backendUrl ||
+      import.meta.env.PUBLIC_BACKEND_URL ||
+      (import.meta.env.PROD ? 'https://api.heysh1n.com.tr' : 'http://localhost:3000');
+    const endpoint = `${rawBase.replace(/\/+$/, '')}/api/spotify/now-playing`;
 
-      ws.onmessage = (event) => {
-        if (!isSubscribed) return;
-        const msg = JSON.parse(event.data);
-        const { op, d, t } = msg;
+    const fetchSpotifyNowPlaying = async () => {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-        if (op === 1) {
-          heartbeatInterval = window.setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ op: 3 }));
-            }
-          }, d.heartbeat_interval);
-
-          ws.send(JSON.stringify({
-            op: 2,
-            d: { subscribe_to_id: discordId }
-          }));
-        }
-
-        if (t === 'INIT_STATE' || t === 'PRESENCE_UPDATE') {
-          const activities = t === 'INIT_STATE' ? d[discordId]?.activities : d.activities;
-          if (!activities) return;
-
-          const musicActivity = activities.find((a: any) => 
-            ['YouTube Music', 'Spotify', 'PreMiD'].includes(a.name)
-          );
-
-          if (musicActivity) {
-            let cover = DEFAULT_COVER;
-            const imageId = musicActivity.assets?.large_image;
-            if (imageId) {
-                if (imageId.startsWith('spotify:')) {
-                    cover = `https://i.scdn.co/image/${imageId.replace('spotify:', '')}`;
-                } else if (imageId.startsWith('mp:external/')) {
-                    cover = `https://media.discordapp.net/external/${imageId.replace('mp:external/', '')}`;
-                } else if (musicActivity.application_id) {
-                    cover = `https://cdn.discordapp.com/app-assets/${musicActivity.application_id}/${imageId}.png`;
-                }
-            }
-
-            lanyardTrackRef.current = {
-              name: musicActivity.details || musicActivity.name || 'Unknown',
-              artist: musicActivity.state || 'Unknown Artist',
-              cover,
-              badge: 'LIVE (RPC)',
-              isPlaying: true,
-            };
-          } else {
-            lanyardTrackRef.current = null;
-          }
-          resolveCascade();
-        }
-      };
-
-      ws.onclose = () => {
-        clearInterval(heartbeatInterval);
-        if (isSubscribed) {
-          reconnectTimeout = window.setTimeout(connect, 5000);
-        }
-      };
-    };
-
-    connect();
-
-    return () => {
-      isSubscribed = false;
-      clearInterval(heartbeatInterval);
-      clearTimeout(reconnectTimeout);
-      if (ws) ws.close();
-      lanyardTrackRef.current = null;
-      resolveCascade();
-    };
-  }, [discordId]);
-
-  // 2, 3, 4. Fallback Polling (Last.fm -> Backend API -> Static oEmbed)
-  useEffect(() => {
-    let isSubscribed = true;
-
-    const fetchFallbacks = async () => {
-      if (lanyardTrackRef.current?.isPlaying) {
-        if (isSubscribed) resolveCascade();
-        return;
-      }
-
-      // 2. Last.fm
-      let lfmPlaying = false;
-      if (username && apiKey) {
-        try {
-          const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${username}&api_key=${apiKey}&format=json&limit=1`;
-          const res = await fetch(url);
-          if (res.ok) {
-            const data = await res.json();
-            const track = data?.recenttracks?.track?.[0];
-            if (track) {
-              const isPlaying = track['@attr']?.nowplaying === 'true';
-              if (isPlaying) {
-                lfmPlaying = true;
-                lastFmTrackRef.current = {
-                  name: track.name,
-                  artist: track.artist?.['#text'] || 'Unknown',
-                  cover: track.image?.[3]?.['#text'] || DEFAULT_COVER,
-                  badge: 'LIVE (LFM)',
-                  isPlaying: true,
-                };
-              } else {
-                lastFmTrackRef.current = null;
-              }
-            }
-          }
-        } catch (e) {
-          console.error('Last.fm fetch error', e);
-        }
-      }
-
-      if (lfmPlaying && isSubscribed) {
-        resolveCascade();
-        return;
-      }
-
-      // 3. Backend YT-Music API
-      let apiPlaying = false;
-      const baseBackend = backendUrl ? backendUrl.replace(/\/+$/, '') : 'http://localhost:3000';
       try {
-        const res = await fetch(`${baseBackend}/api/ytmusic`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.success && data?.track?.isNowPlaying) {
-             apiPlaying = true;
-             apiTrackRef.current = {
-               name: data.track.name,
-               artist: data.track.artist || 'Unknown',
-               cover: data.track.albumArt || DEFAULT_COVER,
-               badge: 'LIVE (API)',
-               isPlaying: true,
-             };
-          } else {
-             apiTrackRef.current = null;
-          }
+        const res = await fetch(endpoint, {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
+
+        if (!res.ok) {
+          if (isMounted) setTrackData(IDLE_TRACK);
+          return;
         }
-      } catch (e) {
-        console.error('API fetch error', e);
-      }
 
-      if (apiPlaying && isSubscribed) {
-        resolveCascade();
-        return;
-      }
+        const data: SpotifyResponse = await res.json();
+        if (!isMounted) return;
 
-      // 4. Static Oembed
-      if (ytmusicUrl && !staticTrackRef.current) {
-        try {
-          const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(ytmusicUrl)}&format=json`);
-          if (res.ok) {
-            const data = await res.json();
-            
-            let title = data.title || 'Unknown';
-            let artist = data.author_name || 'Unknown Artist';
-            if (title.includes(' - ')) {
-              const parts = title.split(' - ');
-              artist = parts[0].trim();
-              title = parts.slice(1).join(' - ').replace(/\s*\(Official.*?\)/gi, '').trim();
-            }
-
-            let albumArt = data.thumbnail_url;
-            if (albumArt && albumArt.includes('hqdefault.jpg')) {
-              albumArt = albumArt.replace('hqdefault.jpg', 'maxresdefault.jpg');
-            }
-
-            staticTrackRef.current = {
-               name: title,
-               artist,
-               cover: albumArt || DEFAULT_COVER,
-               badge: 'STATIC',
-               isPlaying: false,
-               url: ytmusicUrl
-            };
-          }
-        } catch (e) {
-          console.error('oEmbed fetch error', e);
+        if (data.title) {
+          setTrackData({
+            name: data.title,
+            artist: data.artist || 'Unknown Artist',
+            cover: data.albumArt || DEFAULT_COVER,
+            badge: data.isPlaying ? 'NOW PLAYING' : 'RECENTLY PLAYED',
+            isPlaying: Boolean(data.isPlaying),
+            url: data.trackUrl || undefined,
+          });
+        } else {
+          setTrackData(IDLE_TRACK);
         }
-      }
-
-      if (isSubscribed) {
-        resolveCascade();
+      } catch {
+        if (isMounted) {
+          setTrackData((prev) => (prev.badge === 'SYNCING' ? IDLE_TRACK : prev));
+        }
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     };
 
-    fetchFallbacks();
-    const interval = setInterval(fetchFallbacks, 10000);
+    fetchSpotifyNowPlaying();
+    const intervalId = window.setInterval(fetchSpotifyNowPlaying, POLL_INTERVAL_MS);
 
     return () => {
-      isSubscribed = false;
-      clearInterval(interval);
-      lastFmTrackRef.current = null;
-      apiTrackRef.current = null;
+      isMounted = false;
+      window.clearInterval(intervalId);
     };
-  }, [username, apiKey, backendUrl, ytmusicUrl]);
+  }, [backendUrl]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -330,11 +160,19 @@ export default function MusicWidgetIsland({
     <div className="player_card_inner">
       <div className="player_top_actions">
         <div className="player_provider_tag">
-          <span className="player_badge_yt" style={{ background: 'rgba(196, 140, 255, 0.12)', borderColor: 'rgba(196, 140, 255, 0.35)', color: '#c48cff', boxShadow: '0 0 10px rgba(196, 140, 255, 0.15)' }}>
+          <span
+            className="player_badge_yt"
+            style={{
+              background: 'rgba(29, 185, 84, 0.14)',
+              borderColor: 'rgba(29, 185, 84, 0.4)',
+              color: '#1ed760',
+              boxShadow: '0 0 10px rgba(29, 185, 84, 0.18)',
+            }}
+          >
             <svg className="badge_icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-               <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+              <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
             </svg>
-            Tracker
+            Spotify
           </span>
         </div>
 
@@ -355,11 +193,14 @@ export default function MusicWidgetIsland({
 
       <a
         href={trackData.url || '#'}
-        target="_blank"
-        rel="noreferrer"
+        target={trackData.url ? '_blank' : undefined}
+        rel={trackData.url ? 'noopener noreferrer' : undefined}
         className="player_cover_link"
         title={`${trackData.name} — ${trackData.artist}`}
         style={{ cursor: trackData.url ? 'pointer' : 'default' }}
+        onClick={(e) => {
+          if (!trackData.url) e.preventDefault();
+        }}
       >
         <img
           src={trackData.cover}
@@ -383,11 +224,38 @@ export default function MusicWidgetIsland({
 
         <div className="player_status_row">
           {trackData.isPlaying ? (
-            <span className="player_status_badge player_status_live">
-              ● {trackData.badge}
+            <span
+              className="player_status_badge player_status_live"
+              style={{
+                color: '#1ed760',
+                background: 'rgba(29, 185, 84, 0.14)',
+                border: '1px solid rgba(29, 185, 84, 0.4)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span
+                style={{
+                  width: '7px',
+                  height: '7px',
+                  borderRadius: '50%',
+                  backgroundColor: '#1ed760',
+                  boxShadow: '0 0 8px #1ed760',
+                  animation: 'pulse 1.5s infinite',
+                }}
+              />
+              {trackData.badge}
             </span>
           ) : (
-            <span className="player_status_badge" style={{ color: '#a1a1aa', background: 'rgba(161, 161, 170, 0.12)', border: '1px solid rgba(161, 161, 170, 0.3)' }}>
+            <span
+              className="player_status_badge"
+              style={{
+                color: '#a1a1aa',
+                background: 'rgba(161, 161, 170, 0.12)',
+                border: '1px solid rgba(161, 161, 170, 0.3)',
+              }}
+            >
               {trackData.badge}
             </span>
           )}

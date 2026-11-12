@@ -1,36 +1,27 @@
-import type { CollectionAfterChangeHook } from 'payload'
+import type { CollectionAfterChangeHook, GlobalAfterChangeHook } from 'payload'
 
-/**
- * Universal afterChange hook for Payload CMS v3 that triggers a Cloudflare Deploy Webhook.
- * 
- * Safely reads `CLOUDFLARE_WEBHOOK_URL` from environment variables and sends a POST request
- * only on 'create' and 'update' operations. Errors are caught and logged so that content
- * saving in the CMS is never blocked.
- */
-export const triggerCloudflareDeploy: CollectionAfterChangeHook = async ({
-  doc,
-  operation,
-  req,
-  collection,
-}) => {
-  // Only trigger on create and update operations
-  if (operation !== 'create' && operation !== 'update') {
-    return doc
-  }
-
-  // Safe read of the Cloudflare Deploy Webhook URL from environment variables
+const sendCloudflareDeployWebhook = async (
+  targetSlug: string,
+  operation: string,
+  id: unknown,
+  logger: {
+    info: (msg: string) => void
+    warn: (msg: string) => void
+    error: (msg: string) => void
+  },
+) => {
   const webhookUrl = process.env.CLOUDFLARE_WEBHOOK_URL?.trim()
 
   if (!webhookUrl) {
-    req.payload.logger.warn(
-      `[DeployWebhook] CLOUDFLARE_WEBHOOK_URL is not defined in environment variables. Skipping deploy trigger for ${collection.slug}.`,
+    logger.warn(
+      `[DeployWebhook] CLOUDFLARE_WEBHOOK_URL is not defined in environment variables. Skipping deploy trigger for ${targetSlug}.`,
     )
-    return doc
+    return
   }
 
   try {
-    req.payload.logger.info(
-      `[DeployWebhook] Triggering Cloudflare deploy webhook for collection "${collection.slug}" (${operation})...`,
+    logger.info(
+      `[DeployWebhook] Triggering Cloudflare deploy webhook for "${targetSlug}" (${operation})...`,
     )
 
     const response = await fetch(webhookUrl, {
@@ -41,30 +32,52 @@ export const triggerCloudflareDeploy: CollectionAfterChangeHook = async ({
       },
       body: JSON.stringify({
         event: 'deploy_trigger',
-        collection: collection.slug,
+        collection: targetSlug,
         operation,
-        id: doc?.id,
+        id,
         updatedAt: new Date().toISOString(),
       }),
     })
 
     if (!response.ok) {
-      req.payload.logger.error(
-        `[DeployWebhook] Cloudflare responded with status ${response.status} (${response.statusText}) for collection "${collection.slug}".`,
+      logger.error(
+        `[DeployWebhook] Cloudflare responded with status ${response.status} (${response.statusText}) for "${targetSlug}".`,
       )
     } else {
-      req.payload.logger.info(
-        `[DeployWebhook] Cloudflare deploy successfully triggered for collection "${collection.slug}".`,
+      logger.info(
+        `[DeployWebhook] Cloudflare deploy successfully triggered for "${targetSlug}".`,
       )
     }
   } catch (error) {
-    // Catch network / fetch errors without interrupting CMS save flow
-    req.payload.logger.error(
+    logger.error(
       `[DeployWebhook] Failed to send deploy webhook to Cloudflare: ${
         error instanceof Error ? error.message : String(error)
       }`,
     )
   }
+}
+
+export const triggerCloudflareDeploy: CollectionAfterChangeHook = async ({
+  doc,
+  operation,
+  req,
+  collection,
+}) => {
+  if (operation !== 'create' && operation !== 'update') {
+    return doc
+  }
+
+  await sendCloudflareDeployWebhook(collection.slug, operation, doc?.id, req.payload.logger)
+
+  return doc
+}
+
+export const triggerCloudflareDeployGlobal: GlobalAfterChangeHook = async ({
+  doc,
+  req,
+  global,
+}) => {
+  await sendCloudflareDeployWebhook(global.slug, 'update', doc?.id, req.payload.logger)
 
   return doc
 }
