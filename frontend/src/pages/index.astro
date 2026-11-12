@@ -1,6 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import MusicWidgetIsland from '../components/MusicWidgetIsland';
+import DiscordProfileIsland from '../components/DiscordProfileIsland';
+import ProjectModal from '../components/ProjectModal.astro';
+import { renderProjectContent } from '../utils/markdown';
 
 type PayloadListResponse<T> = {
   docs?: T[];
@@ -21,6 +24,8 @@ type HomePageGlobal = {
   ytmusic_url?: string | null;
   lastfm_user?: string | null;
   discord_id?: string | null;
+  discord_username?: string | null;
+  discord_tag?: string | null;
   socials?: HomePageSocial[] | null;
 };
 
@@ -59,11 +64,30 @@ type Technology = {
   name: string;
   category?: TechnologyCategory | null;
 };
+const isProd = import.meta.env.PROD;
+const rawBackendUrl =
+  import.meta.env.PUBLIC_BACKEND_URL ||
+  import.meta.env.BACKEND_URL ||
+  (isProd ? '' : 'http://localhost:3000');
 
-const homePageEndpoint = 'http://localhost:3000/api/globals/home-page';
-const projectsEndpoint = 'http://localhost:3000/api/projects';
-const technologiesEndpoint = 'http://localhost:3000/api/technologies';
-const payloadFetchTimeoutMs = 2500;
+if (!rawBackendUrl) {
+  if (isProd) {
+    throw new Error(
+      '❌ [SSG Build Error] PUBLIC_BACKEND_URL is not configured for production build! Please add PUBLIC_BACKEND_URL in Cloudflare Dashboard: Settings -> Build -> Build variables and secrets.'
+    );
+  } else {
+    console.warn('⚠️ [Dev Warning] PUBLIC_BACKEND_URL is not set, falling back to http://localhost:3000');
+  }
+}
+
+const backendUrl = rawBackendUrl.replace(/\/+$/, '');
+console.log(`[Payload SSG] Fetching data for static build from: ${backendUrl}`);
+
+const homePageEndpoint = `${backendUrl}/api/globals/home-page`;
+const projectsEndpoint = `${backendUrl}/api/projects`;
+const technologiesEndpoint = `${backendUrl}/api/technologies`;
+// Render (free tier) + Neon cold-start can take up to 45 seconds during production build
+const payloadFetchTimeoutMs = isProd ? 45000 : 10000;
 
 const categoryLabels: Record<TechnologyCategory, string> = {
   os_tools: 'OS & Tools',
@@ -150,7 +174,9 @@ const fallbackHomePage: HomePageGlobal = {
   description:
     'Anonymous backend and systems persona focused on practical tooling, resilient server workflows, Linux-first environments, and hardware-adjacent experiments.',
   lastfm_user: '',
-  discord_id: '',
+  discord_id: '995737379417640961',
+  discord_username: 'heysh1n',
+  discord_tag: 'HEYSH1N',
 };
 
 const fetchPayloadGlobal = async <T,>(url: string): Promise<T | null> => {
@@ -239,8 +265,7 @@ const withTextFormat = (text: string, format?: number | string): string => {
   return formatted;
 };
 
-const renderChildren = (children: RichTextNode[] = []): string =>
-  children.map(renderRichTextNode).join('');
+const renderChildren = (children: RichTextNode[] = []): string => children.map(renderRichTextNode).join('');
 
 const renderRichTextNode = (node: RichTextNode): string => {
   const children = renderChildren(node.children);
@@ -306,7 +331,7 @@ const heroRole = textOrFallback(homePage?.role, fallbackHomePage.role ?? 'Backen
 const heroDesc = textOrFallback(
   homePage?.description,
   fallbackHomePage.description ??
-    'Anonymous backend and systems persona focused on practical tooling, resilient server workflows, Linux-first environments, and hardware-adjacent experiments.'
+    'Anonymous backend and systems persona focused on practical tooling, resilient server workflows, Linux-first environments, and hardware-adjacent experiments.',
 );
 const lastFmUser = textOrFallback(homePage?.lastfm_user, fallbackHomePage.lastfm_user ?? '');
 
@@ -315,7 +340,7 @@ const technologies = fetchedTechnologies.length > 0 ? fetchedTechnologies : fall
 
 const projectCards = projects.map((project, index) => ({
   ...project,
-  contentHtml: renderRichText(project.detailedContent),
+  contentHtml: renderProjectContent(project.detailedContent),
   dialogId: `modal-project-${sanitizeId(project.slug || String(project.id ?? index))}`,
   tone: index % 2 === 0 ? 'purple' : 'red',
 }));
@@ -334,7 +359,9 @@ const stackSummary =
     .slice(0, 4)
     .join(', ') || 'Payload stack data';
 
-const fallbackSocials: HomePageSocial[] = [];
+const fallbackSocials: HomePageSocial[] = [
+
+];
 
 const enabledSocials = homePage?.socials?.filter((s) => s.enabled !== false);
 const socials = enabledSocials && enabledSocials.length > 0 ? enabledSocials : fallbackSocials;
@@ -342,6 +369,9 @@ const socials = enabledSocials && enabledSocials.length > 0 ? enabledSocials : f
 const lastFmApiKey = import.meta.env.PUBLIC_LASTFM_API_KEY || '42bf547ad2d7ae6d078dd9fee67571a3';
 const musicProvider = homePage?.music_provider || 'ytmusic';
 const ytmusicUrl = homePage?.ytmusic_url || null;
+const discordId = textOrFallback(homePage?.discord_id, fallbackHomePage.discord_id ?? '995737379417640961');
+const discordUsername = textOrFallback(homePage?.discord_username, fallbackHomePage.discord_username ?? 'heysh1n');
+const discordTag = textOrFallback(homePage?.discord_tag, fallbackHomePage.discord_tag ?? 'HEYSH1N');
 
 const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
   let parsedUrl: URL | null = null;
@@ -368,6 +398,7 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
       platform = 'youtube';
     } else {
       const parts = hostname.split('.');
+      
       platform = parts.length > 1 ? parts[parts.length - 2] : parts[0];
     }
   }
@@ -380,140 +411,175 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
 
   const title = `${platform}.link`;
 
-  let handle = '';
-  if (parsedUrl) {
-    const path = parsedUrl.pathname.replace(/^\/+|\/+$/g, '');
-    if (path) {
-      handle = `_${path.replace(/^@/, '')}`;
-    }
-  }
-  if (!handle) {
-    handle = `_${platform}`;
-  }
+  const cleaned = parsedUrl ? parsedUrl.pathname.replace(/^[/@]+/, '').replace(/\/+$/, '') : '';
+  const subText = cleaned || hostname || platform;
 
   return {
     platform,
     domain,
     title,
-    handle,
+    subText,
+    handle: subText,
     iconUrl,
     fallbackFavicon,
     url: parsedUrl ? parsedUrl.toString() : rawUrl,
   };
 };
 ---
-
-<Layout>
-  <!-- Тот самый центрированный "невидимый квадрат" -->
+<Layout discordId={discordId}>
   <main class="w-full max-w-5xl mx-auto p-4 flex flex-col justify-center items-center">
-    <section class="bento-container w-full">
-      {/* ── 1. Смердженный блок: профиль + стек ── */}
-      <div class="hero_card glassmorphism flex flex-col">
+    <section class="bento-container">
+      <div class="hero_card glassmorphism h-full flex flex-col">
         <span class="hero_title">hero.md</span>
         <span class="hero_item">{heroName}</span>
-        <span class="hero_item">{heroRole}</span>
-
-        <!-- Линия-разделитель и вывод стека -->
-        <div class="mt-4 pt-4 border-t border-white/10 w-full">
-          <span class="hero_title" style="font-size: 0.75rem;">stack.yml</span>
-          <p class="project_description mt-1 text-sm">{stackSummary}</p>
-        </div>
+        <span class="hero_item mb-4">{heroRole}</span>
+        <button 
+          type="button" 
+          class="w-full text-center py-2 px-4 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm text-purple-300 mt-4"
+          data-modal-target="modal-stack"
+        >
+          [ Open stack.yml ]
+        </button>
       </div>
 
-      {/* ── 2. .env Card ── */}
       <div class="env_card glassmorphism">
-        <span class="hero_title">.env</span>
-        <img src="/assets/bg/image.png" alt="process.env.IMAGE" />
-      </div>
-
-      {/* ── 3. Player Card ── */}
-      <div class="player_card glassmorphism">
-        <span class="hero_title">player.sh</span>
-        <MusicWidgetIsland
-          username={lastFmUser}
-          apiKey={lastFmApiKey}
-          preferredProvider={musicProvider}
-          ytmusicUrl={ytmusicUrl}
+        <DiscordProfileIsland
           client:load
+          discordId={discordId}
+          username={discordUsername}
+          displayName={heroName}
+          fallbackTag={discordTag}
         />
       </div>
 
-      {/* ── 4. Project Cards ── */}
-      {
-        projectCards.map((project) => (
-          <div class="project_card glassmorphism">
-            <span class="project_title">{project.title}</span>
-            <p class="project_description">{project.description}</p>
-            {project.status && (
-              <span class="project_status" data-status={project.status}>
-                {statusLabels[project.status]}
-              </span>
-            )}
-          </div>
-        ))
-      }
+      <div class="player_card glassmorphism">
+        <div class="player_header">
+          <span class="hero_title">player.sh</span>
+        </div>
+        <MusicWidgetIsland
+          client:load
+          discordId={discordId}
+          username={lastFmUser}
+          apiKey={lastFmApiKey}
+          ytmusicUrl={ytmusicUrl}
+          preferredProvider={musicProvider}
+          backendUrl={backendUrl}
+        />
+      </div>
 
-      <hr class="social-divider w-full" />
+      {/* ── Project Cards (clickable → open modal) ── */}
+      {projectCards.map((project) => (
+        <button
+          type="button"
+          class="project_card glassmorphism"
+          data-modal-target={project.dialogId}
+          aria-label={`Open ${project.title} details`}
+        >
+          <span class="project_title">{project.title}</span>
+          <p class="project_description">{project.description}</p>
+          {project.status && (
+            <span class="project_status" data-status={project.status}>
+              {statusLabels[project.status]}
+            </span>
+          )}
+        </button>
+      ))}
 
-      {/* ── 5. Social Links ── */}
-      <div class="socials-container w-full">
-        {
-          socials.map((social) => {
-            const meta = getSocialMeta(social.url, social.platform);
-            return (
-              <a
-                class="social-card glassmorphism"
-                href={meta.url}
-                target="_blank"
-                rel="noreferrer"
-                title={meta.title}
-              >
-                <img
-                  src={meta.iconUrl}
-                  alt={meta.platform}
-                  class="social-icon"
-                  loading="lazy"
-                  onerror={`this.onerror=null; this.src='${meta.fallbackFavicon}';`}
-                />
-                <div class="social-info">
-                  <span class="social-title">{meta.title}</span>
-                  <span class="social-handle">{meta.handle}</span>
-                </div>
-              </a>
-            );
-          })
-        }
+
+
+      <hr class="social-divider" />
+
+      <div class="socials-container">
+        {socials.map((social) => {
+          const meta = getSocialMeta(social.url, social.platform);
+          return (
+            <a
+              class="social-card glassmorphism"
+              href={meta.url}
+              target="_blank"
+              rel="noreferrer"
+              title={meta.title}
+            >
+              <img
+                src={meta.iconUrl}
+                alt={meta.platform}
+                class="social-icon"
+                loading="lazy"
+                onerror={`this.onerror=null; this.src='${meta.fallbackFavicon}';`}
+              />
+              <div class="social-info">
+                <span class="social-title">{meta.title}</span>
+                <span class="social-handle">{meta.handle}</span>
+              </div>
+            </a>
+          );
+        })}
       </div>
     </section>
   </main>
+
+  {/* ── Project Modals (Reusable <ProjectModal /> with native <dialog>) ── */}
+  {projectCards.map((project) => (
+    <ProjectModal
+      id={project.dialogId}
+      title={project.title}
+      contentHtml={project.contentHtml}
+      status={project.status ? statusLabels[project.status] : null}
+      statusCode={project.status}
+      githubLink={project.githubLink}
+    />
+  ))}
+
+  {/* ── Stack Modal (Reusable <ProjectModal />) ── */}
+  <ProjectModal id="modal-stack" title="Technology Stack">
+    <div class="modal_body">
+      {stackGroups.map((group) =>
+        group.names.length > 0 && (
+          <div class="stack_group">
+            <h3 class="stack_group_label">{group.label}</h3>
+            <ul class="stack_list">
+              {group.names.map((name) => (
+                <li class="stack_chip">{name}</li>
+              ))}
+            </ul>
+          </div>
+        )
+      )}
+    </div>
+  </ProjectModal>
 </Layout>
 
 <style>
-  /* ── Scoped overrides (page-level only) ── */
-
-  .project_card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    padding: 1.5rem;
+  /* ── Stack inside Modal ── */
+  .stack_group {
+    margin-bottom: 1.25rem;
   }
 
-  .project_title {
-    font-size: 1.35rem;
+  .stack_group_label {
+    font-size: 0.8rem;
     font-weight: 600;
-  }
-
-  .project_description {
-    color: #b0b0b0;
-    font-size: 0.95rem;
-    line-height: 1.5;
-  }
-
-  .project_status {
-    font-size: 0.75rem;
     text-transform: uppercase;
-    letter-spacing: 0.15em;
-    opacity: 0.6;
-    align-self: flex-start;
+    letter-spacing: 0.12em;
+    color: #c084fc;
+    margin-bottom: 0.5rem;
+  }
+
+  .stack_list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .stack_chip {
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: #d8b4fe;
+    font-size: 0.78rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    white-space: nowrap;
   }
 </style>
