@@ -7,6 +7,7 @@ const RECENTLY_PLAYED_ENDPOINT = 'https://api.spotify.com/v1/me/player/recently-
 const SCOPES = 'user-read-currently-playing user-read-recently-played'
 
 type SpotifyTrackItem = {
+  id?: string
   name?: string
   artists?: Array<{ name?: string }>
   album?: {
@@ -17,6 +18,65 @@ type SpotifyTrackItem = {
     spotify?: string
   }
   duration_ms?: number
+  preview_url?: string | null
+}
+
+const previewUrlCache = new Map<string, string | null>()
+
+const resolvePreviewUrl = async (
+  item: SpotifyTrackItem,
+  title: string,
+  primaryArtist: string,
+): Promise<string | null> => {
+  if (item.preview_url) {
+    return item.preview_url
+  }
+
+  const cacheKey = item.id ? `id:${item.id}` : `meta:${primaryArtist.toLowerCase()}:${title.toLowerCase()}`
+
+  if (previewUrlCache.has(cacheKey)) {
+    return previewUrlCache.get(cacheKey) ?? null
+  }
+
+  if (!title || !primaryArtist) {
+    previewUrlCache.set(cacheKey, null)
+    return null
+  }
+
+  try {
+    const searchTerm = `${primaryArtist} ${title}`
+    const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&entity=song&limit=1`
+    const res = await fetch(itunesUrl, {
+      signal: AbortSignal.timeout(3000),
+      headers: { Accept: 'application/json' },
+    })
+
+    if (res.ok) {
+      const itunesData = (await res.json().catch(() => null)) as {
+        resultCount?: number
+        results?: Array<{ previewUrl?: string }>
+      } | null
+
+      const itunesPreview = itunesData?.results?.[0]?.previewUrl || null
+
+      if (previewUrlCache.size > 1000) {
+        const first = previewUrlCache.keys().next().value
+        if (first) previewUrlCache.delete(first)
+      }
+
+      previewUrlCache.set(cacheKey, itunesPreview)
+      return itunesPreview
+    }
+  } catch {
+    // Timeout or network error
+  }
+
+  if (previewUrlCache.size > 1000) {
+    const first = previewUrlCache.keys().next().value
+    if (first) previewUrlCache.delete(first)
+  }
+  previewUrlCache.set(cacheKey, null)
+  return null
 }
 
 let cachedToken: {
@@ -104,16 +164,24 @@ const getAccessToken = async (): Promise<string | null> => {
   return data.access_token
 }
 
-const formatTrack = (item: SpotifyTrackItem, isPlaying: boolean, progressMs?: number) => ({
-  isPlaying,
-  title: item.name || 'Unknown Track',
-  artist: item.artists?.map((a) => a.name).filter(Boolean).join(', ') || 'Unknown Artist',
-  album: item.album?.name || '',
-  albumArt: item.album?.images?.[0]?.url || null,
-  trackUrl: item.external_urls?.spotify || null,
-  progressMs: progressMs ?? null,
-  durationMs: item.duration_ms ?? null,
-})
+const formatTrack = async (item: SpotifyTrackItem, isPlaying: boolean, progressMs?: number) => {
+  const title = item.name || 'Unknown Track'
+  const primaryArtist = item.artists?.[0]?.name || ''
+  const artist = item.artists?.map((a) => a.name).filter(Boolean).join(', ') || 'Unknown Artist'
+  const previewUrl = await resolvePreviewUrl(item, title, primaryArtist)
+
+  return {
+    isPlaying,
+    title,
+    artist,
+    album: item.album?.name || '',
+    albumArt: item.album?.images?.[0]?.url || null,
+    trackUrl: item.external_urls?.spotify || null,
+    previewUrl,
+    progressMs: progressMs ?? null,
+    durationMs: item.duration_ms ?? null,
+  }
+}
 
 const responseHeaders = {
   'Cache-Control': 'no-store, max-age=0',
@@ -128,7 +196,7 @@ export const spotifyNowPlayingEndpoint: Endpoint = {
 
       if (!accessToken) {
         return Response.json(
-          { isPlaying: false, error: 'Spotify credentials are not configured' },
+          { isPlaying: false, previewUrl: null, error: 'Spotify credentials are not configured' },
           { status: 200, headers: responseHeaders },
         )
       }
@@ -148,10 +216,8 @@ export const spotifyNowPlayingEndpoint: Endpoint = {
         }
 
         if (data?.item) {
-          return Response.json(
-            formatTrack(data.item, Boolean(data.is_playing), data.progress_ms),
-            { status: 200, headers: responseHeaders },
-          )
+          const formatted = await formatTrack(data.item, Boolean(data.is_playing), data.progress_ms)
+          return Response.json(formatted, { status: 200, headers: responseHeaders })
         }
       }
 
@@ -170,18 +236,48 @@ export const spotifyNowPlayingEndpoint: Endpoint = {
         const recentTrack = recentData?.items?.[0]?.track
 
         if (recentTrack) {
-          return Response.json(formatTrack(recentTrack, false), {
+          const formatted = await formatTrack(recentTrack, false)
+          return Response.json(formatted, {
             status: 200,
             headers: responseHeaders,
           })
         }
       }
 
-      return Response.json({ isPlaying: false }, { status: 200, headers: responseHeaders })
+      return Response.json({ isPlaying: false, previewUrl: null }, { status: 200, headers: responseHeaders })
     } catch {
-      return Response.json({ isPlaying: false }, { status: 200, headers: responseHeaders })
+      return Response.json({ isPlaying: false, previewUrl: null }, { status: 200, headers: responseHeaders })
     }
   },
+}
+
+/**
+ * Resolves the Spotify OAuth redirect URI.
+ * Prioritizes SPOTIFY_REDIRECT_URI environment variable, falling back to
+ * PAYLOAD_PUBLIC_SERVER_URL or NEXT_PUBLIC_SERVER_URL or http://127.0.0.1:3000.
+ * Guarantees that both /login and /callback share the exact identical string.
+ */
+export const getSpotifyRedirectUri = (): string => {
+  const envRedirect = process.env.SPOTIFY_REDIRECT_URI?.trim()
+  if (envRedirect) {
+    try {
+      const parsed = new URL(envRedirect)
+      if (parsed.pathname === '/' || parsed.pathname === '') {
+        return `${envRedirect.replace(/\/+$/, '')}/api/spotify/callback`
+      }
+      return envRedirect
+    } catch {
+      return envRedirect
+    }
+  }
+
+  const serverUrl = (
+    process.env.PAYLOAD_PUBLIC_SERVER_URL ||
+    process.env.NEXT_PUBLIC_SERVER_URL ||
+    'http://127.0.0.1:3000'
+  ).replace(/\/+$/, '')
+
+  return `${serverUrl}/api/spotify/callback`
 }
 
 /**
@@ -201,12 +297,7 @@ export const spotifyLoginEndpoint: Endpoint = {
       return Response.json({ error: 'SPOTIFY_CLIENT_ID is not set in .env' }, { status: 400 })
     }
 
-    const serverUrl = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://127.0.0.1:3000').replace(
-      /\/+$/,
-      '',
-    )
-    const redirectUri =
-      process.env.SPOTIFY_REDIRECT_URI?.trim() || `${serverUrl}/api/spotify/callback`
+    const redirectUri = getSpotifyRedirectUri()
 
     const params = new URLSearchParams({
       response_type: 'code',
@@ -215,6 +306,11 @@ export const spotifyLoginEndpoint: Endpoint = {
       redirect_uri: redirectUri,
     })
 
+    const serverUrl = (
+      process.env.PAYLOAD_PUBLIC_SERVER_URL ||
+      process.env.NEXT_PUBLIC_SERVER_URL ||
+      'http://127.0.0.1:3000'
+    ).replace(/\/+$/, '')
     const reqUrl = req.url || `${serverUrl}/api/spotify/login`
     return Response.redirect(new URL(`${AUTHORIZE_ENDPOINT}?${params.toString()}`, reqUrl), 302)
   },
@@ -228,7 +324,12 @@ export const spotifyCallbackEndpoint: Endpoint = {
       return Response.json({ error: 'Not available in production' }, { status: 403 })
     }
 
-    const url = new URL(req.url || 'http://127.0.0.1:3000/api/spotify/callback')
+    const serverUrl = (
+      process.env.PAYLOAD_PUBLIC_SERVER_URL ||
+      process.env.NEXT_PUBLIC_SERVER_URL ||
+      'http://127.0.0.1:3000'
+    ).replace(/\/+$/, '')
+    const url = new URL(req.url || `${serverUrl}/api/spotify/callback`)
     const code = url.searchParams.get('code')
 
     if (!code) {
@@ -245,13 +346,7 @@ export const spotifyCallbackEndpoint: Endpoint = {
       )
     }
 
-    const serverUrl = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://127.0.0.1:3000').replace(
-      /\/+$/,
-      '',
-    )
-    const redirectUri =
-      process.env.SPOTIFY_REDIRECT_URI?.trim() || `${serverUrl}/api/spotify/callback`
-
+    const redirectUri = getSpotifyRedirectUri()
     const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
 
     const response = await fetch(TOKEN_ENDPOINT, {

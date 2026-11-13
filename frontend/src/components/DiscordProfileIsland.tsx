@@ -188,11 +188,19 @@ export default function DiscordProfileIsland({
   const status: DiscordStatus = data?.discord_status || fallbackStatus;
   const activities = data?.activities || [];
 
+  // Filter out Spotify activity so Discord card only shows non-Spotify games/apps without duplicating player.sh
+  const isSpotifyActivity = (a: Activity) =>
+    a.name === 'Spotify' ||
+    a.id === 'spotify:1' ||
+    (Boolean(a.party?.id) && String(a.party?.id).startsWith('spotify:')) ||
+    a.type === 2;
+
   const customStatus = activities.find((a) => a.type === 4);
   const gameActivity = activities.find(
-    (a) => a.type === 0 || a.type === 1 || a.type === 3 || a.type === 5,
+    (a) =>
+      !isSpotifyActivity(a) &&
+      (a.type === 0 || a.type === 1 || a.type === 3 || a.type === 5),
   );
-  const spotify = data?.listening_to_spotify && data?.spotify ? data.spotify : null;
 
   // Real-time elapsed timer
   useEffect(() => {
@@ -388,7 +396,7 @@ export default function DiscordProfileIsland({
         </div>
       </div>
 
-      {/* Activity Section (Game / Spotify / Status) */}
+      {/* Activity Section (Game / Status - Spotify ignored to prevent duplicate with player.sh) */}
       <div className="discord_activity_box">
         {gameActivity ? (
           <div className="discord_game_activity">
@@ -436,25 +444,6 @@ export default function DiscordProfileIsland({
                   <span className="discord_game_state">{gameActivity.state}</span>
                 )}
                 {elapsedTime && <span className="discord_game_timer">{elapsedTime}</span>}
-              </div>
-            </div>
-          </div>
-        ) : spotify ? (
-          <div className="discord_spotify_activity">
-            <div className="discord_activity_label discord_label_spotify">
-              <span className="discord_spotify_dot" />
-              <span>Spotify</span>
-            </div>
-            <div className="discord_activity_content">
-              <img
-                src={spotify.album_art_url}
-                alt={spotify.album}
-                className="discord_spotify_art"
-              />
-              <div className="discord_spotify_info">
-                <span className="discord_spotify_song">{spotify.song}</span>
-                <span className="discord_spotify_artist">by {spotify.artist}</span>
-                <span className="discord_spotify_album">{spotify.album}</span>
               </div>
             </div>
           </div>

@@ -14,15 +14,20 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  
   webpack: (webpackConfig) => {
     webpackConfig.resolve.extensionAlias = {
       '.cjs': ['.cts', '.cjs'],
       '.js': ['.ts', '.tsx', '.js', '.jsx'],
       '.mjs': ['.mts', '.mjs'],
     }
-
+    webpackConfig.watchOptions = {
+      ...(webpackConfig.watchOptions || {}),
+      ignored: ['**/node_modules/**', '**/.git/**', '**/.next/**', '**/frontend/**'],
+    }
     return webpackConfig
   },
+  
   turbopack: {
     root: path.resolve(dirname),
   },

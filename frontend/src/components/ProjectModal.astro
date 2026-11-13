@@ -1,5 +1,5 @@
 ---
-import { renderProjectContent } from '../utils/markdown';
+import { renderProjectContent, renderMarkdown } from '../utils/markdown';
 import 'katex/dist/katex.min.css';
 
 interface Props {
@@ -8,9 +8,14 @@ interface Props {
   description?: string | null;
   markdownContent?: unknown;
   contentHtml?: string | null;
+  tags?: string[] | string | null;
   status?: string | null;
   statusCode?: string | null;
+  ctaUrl?: string | null;
+  ctaLabel?: string | null;
+  githubUrl?: string | null;
   githubLink?: string | null;
+  demoUrl?: string | null;
 }
 
 const {
@@ -19,27 +24,59 @@ const {
   description,
   markdownContent,
   contentHtml,
+  tags,
   status,
   statusCode,
+  ctaUrl,
+  ctaLabel,
+  githubUrl,
   githubLink,
+  demoUrl,
 } = Astro.props;
 
 // Контент рендерится строго на этапе Astro SSG сборки (Zero Client JS)
 const renderedHtml = markdownContent
   ? renderProjectContent(markdownContent)
   : (contentHtml || '');
+
+const tagsList: string[] = Array.isArray(tags)
+  ? tags
+  : typeof tags === 'string'
+    ? tags.split(',').map((t) => t.trim()).filter(Boolean)
+    : [];
+
+const resolvedGithub = githubUrl || githubLink || null;
+const resolvedCtaUrl = ctaUrl || resolvedGithub || demoUrl || null;
+const resolvedCtaLabel =
+  ctaLabel ||
+  (ctaUrl
+    ? 'Перейти к проекту'
+    : resolvedGithub
+      ? 'Перейти на GitHub'
+      : demoUrl
+        ? 'Открыть демо'
+        : 'Перейти к проекту');
 ---
 
-<dialog id={id} class="modal glassmorphism" aria-labelledby={`${id}-title`}>
+<dialog id={id} class="modal glassmorphism" aria-labelledby={`${id}-title`} closedby="any">
   <div class="modal_inner">
     <div class="modal_header">
       <div class="modal_header_info">
         <h2 id={`${id}-title`} class="modal_title">{title}</h2>
-        {status && (
-          <span class="project_status" data-status={statusCode || ''}>
-            {status}
-          </span>
-        )}
+        <div class="modal_meta_row">
+          {status && (
+            <span class="project_status" data-status={statusCode || ''}>
+              {status}
+            </span>
+          )}
+          {tagsList.length > 0 && (
+            <div class="modal_tags">
+              {tagsList.map((tag) => (
+                <span class="modal_tag">{tag}</span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <button
         type="button"
@@ -59,16 +96,41 @@ const renderedHtml = markdownContent
 
     <slot />
 
-    {githubLink && (
+    {(resolvedCtaUrl || resolvedGithub || demoUrl) && (
       <div class="modal_footer">
-        <a
-          href={githubLink}
-          target="_blank"
-          rel="noreferrer"
-          class="modal_link"
-        >
-          View on GitHub →
-        </a>
+        {resolvedCtaUrl && (
+          <a
+            href={resolvedCtaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="modal_cta_primary"
+          >
+            <span>{resolvedCtaLabel}</span>
+            <span class="cta_arrow" aria-hidden="true">↗</span>
+          </a>
+        )}
+        {resolvedGithub && resolvedCtaUrl !== resolvedGithub && (
+          <a
+            href={resolvedGithub}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="modal_cta_secondary"
+          >
+            <span>GitHub</span>
+            <span class="cta_arrow" aria-hidden="true">→</span>
+          </a>
+        )}
+        {demoUrl && resolvedCtaUrl !== demoUrl && (
+          <a
+            href={demoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="modal_cta_secondary"
+          >
+            <span>Демо</span>
+            <span class="cta_arrow" aria-hidden="true">↗</span>
+          </a>
+        )}
       </div>
     )}
   </div>
@@ -80,18 +142,16 @@ const renderedHtml = markdownContent
     position: fixed;
     inset: 0;
     margin: auto;
-    width: min(92vw, 680px);
+    width: min(92vw, 760px);
     max-height: min(85vh, 85dvh);
     padding: 0;
-    border: 1px solid rgba(196, 140, 255, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
-    background: rgba(18, 5, 24, 0.75);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(14, 4, 18, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     color: #e2e8f0;
-    box-shadow:
-      0 24px 64px 0 rgba(0, 0, 0, 0.65),
-      0 0 32px rgba(168, 85, 247, 0.25);
+    box-shadow: 0 24px 64px 0 rgba(0, 0, 0, 0.75);
     overflow: hidden;
     outline: none;
     opacity: 0;
@@ -100,6 +160,11 @@ const renderedHtml = markdownContent
                 transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
                 overlay 0.2s allow-discrete,
                 display 0.2s allow-discrete;
+  }
+
+  /* MANDATORY modern web guidance: Contain scroll chaining inside modal */
+  dialog.modal:modal {
+    overscroll-behavior: contain;
   }
 
   dialog.modal[open] {
@@ -114,11 +179,13 @@ const renderedHtml = markdownContent
     }
   }
 
-  /* ── Darkened backdrop with blur ── */
+  /* ── Darkened backdrop with blur & scroll containment ── */
   dialog.modal::backdrop {
-    background: rgba(8, 2, 14, 0.75);
+    background: rgba(8, 2, 14, 0.78);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    overflow: hidden;
+    overscroll-behavior: contain;
     opacity: 0;
     transition: opacity 0.2s ease,
                 overlay 0.2s allow-discrete,
@@ -150,22 +217,48 @@ const renderedHtml = markdownContent
     justify-content: space-between;
     align-items: flex-start;
     gap: 1rem;
-    border-bottom: 1px solid rgba(196, 140, 255, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     padding-bottom: 1rem;
   }
 
   .modal_header_info {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.5rem;
+    min-width: 0;
   }
 
   .modal_title {
     font-size: clamp(1.25rem, 1.1rem + 1vw, 1.75rem);
     font-weight: 700;
     color: #ffffff;
-    text-shadow: 0 0 12px rgba(196, 140, 255, 0.5);
     margin: 0;
+    word-break: break-word;
+  }
+
+  .modal_meta_row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .modal_tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .modal_tag {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: #d4d4d8;
+    white-space: nowrap;
   }
 
   .modal_description {
@@ -177,9 +270,9 @@ const renderedHtml = markdownContent
 
   .modal_close {
     flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #c084fc;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #a1a1aa;
     font-size: 1.15rem;
     width: 2.25rem;
     height: 2.25rem;
@@ -188,11 +281,12 @@ const renderedHtml = markdownContent
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
   }
 
   .modal_close:hover {
-    background: rgba(168, 85, 247, 0.25);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.16);
     color: #ffffff;
     transform: scale(1.05);
   }
@@ -208,29 +302,81 @@ const renderedHtml = markdownContent
   }
 
   .modal_footer {
-    padding-top: 0.5rem;
-    border-top: 1px solid rgba(196, 140, 255, 0.15);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin-top: 0.5rem;
   }
 
-  .modal_link {
+  .modal_cta_primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1.35rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    color: #f4f4f5;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.2s ease,
+                background 0.2s ease,
+                color 0.2s ease;
+  }
+
+  .modal_cta_primary:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+  }
+
+  .modal_cta_primary:active {
+    transform: translateY(0);
+  }
+
+  .modal_cta_secondary {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    color: #c084fc;
-    font-size: 0.9rem;
-    text-decoration: none;
+    padding: 0.68rem 1.15rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    color: #a1a1aa;
+    font-size: 0.88rem;
     font-weight: 500;
-    transition: color 0.15s ease, transform 0.15s ease;
+    text-decoration: none;
+    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
   }
 
-  .modal_link:hover {
-    color: #ffffff;
-    transform: translateX(2px);
+  .modal_cta_secondary:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #f4f4f5;
+    transform: translateY(-1px);
+  }
+
+  .cta_arrow {
+    font-size: 1.05rem;
+    line-height: 1;
+    transition: transform 0.18s ease;
+  }
+
+  .modal_cta_primary:hover .cta_arrow,
+  .modal_cta_secondary:hover .cta_arrow {
+    transform: translate(2px, -2px);
   }
 </style>
 
 <script>
-  // Единое глобальное делегирование событий для модальных окон
+  // Единое глобальное делегирование событий для модальных окон (native <dialog>)
   const setupModalDelegation = () => {
     if ((window as any).__projectModalHandlerAttached) return;
     (window as any).__projectModalHandlerAttached = true;
@@ -247,7 +393,6 @@ const renderedHtml = markdownContent
           const dialog = document.getElementById(dialogId) as HTMLDialogElement | null;
           if (dialog && typeof dialog.showModal === 'function') {
             dialog.showModal();
-            document.body.style.overflow = 'hidden';
           }
         }
         return;
@@ -261,8 +406,8 @@ const renderedHtml = markdownContent
         return;
       }
 
-      // 3. Закрытие по клику на затемненный backdrop (вне пределов inner bounding rect)
-      if (target.tagName === 'DIALOG') {
+      // 3. Fallback закрытия по клику на backdrop для браузеров без поддержки closedby="any"
+      if (!('closedBy' in HTMLDialogElement.prototype) && target.tagName === 'DIALOG') {
         const dialog = target as HTMLDialogElement;
         if (dialog.open) {
           const rect = dialog.getBoundingClientRect();
@@ -278,22 +423,6 @@ const renderedHtml = markdownContent
         }
       }
     });
-
-    // 4. Восстановление скролла при закрытии диалога (через Esc или .close())
-    document.addEventListener(
-      'close',
-      (event) => {
-        if ((event.target as HTMLElement)?.tagName === 'DIALOG') {
-          const hasRemainingOpen = Array.from(document.querySelectorAll('dialog')).some(
-            (d) => d.open
-          );
-          if (!hasRemainingOpen) {
-            document.body.style.removeProperty('overflow');
-          }
-        }
-      },
-      true
-    );
   };
 
   setupModalDelegation();

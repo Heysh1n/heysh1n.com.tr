@@ -80,6 +80,33 @@ describe('SFCP license validation endpoint (hash-based auth)', () => {
     expect(body).toEqual({ status: 'error', message: 'Missing HWID or hash.' })
   })
 
+  it('correctly parses JSON when req.body is a ReadableStream (real HTTP Request)', async () => {
+    const key = 'SFCP-KEY'
+    const hwid = 'HWID-STREAM'
+    const hash = makeHash(key, hwid)
+
+    const find = vi.fn().mockResolvedValue({
+      docs: [{ id: 1, license_key: key, hwid, status: 'active' }],
+    })
+    const update = vi.fn().mockResolvedValue({})
+
+    const req = new Request('http://127.0.0.1:3000/api/v1/validate', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-sfcp-agent': 'secure-client-v1',
+      },
+      body: JSON.stringify({ hwid, hash }),
+    })
+    ;(req as any).payload = { find, update }
+
+    const response = await validateLicenseEndpoint.handler(req as never)
+    const resBody = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(resBody).toEqual({ status: 'ok' })
+  })
+
   it('returns 403 when no license matches the hash', async () => {
     const { body, response, update } = await invokeValidate({
       body: { hwid: 'HWID-1', hash: 'deadbeef' },

@@ -183,7 +183,19 @@ export interface Project {
   title: string;
   slug: string;
   description: string;
-  detailedContent: {
+  /**
+   * Full project details / README in Markdown format shown inside the modal
+   */
+  markdown_description?: string | null;
+  /**
+   * Modal button label, e.g., 'Купить ключ' or 'Открыть на GitHub'
+   */
+  cta_label?: string | null;
+  /**
+   * Target URL for the modal action button
+   */
+  cta_url?: string | null;
+  detailedContent?: {
     root: {
       type: string;
       children: {
@@ -197,9 +209,17 @@ export interface Project {
       version: number;
     };
     [k: string]: unknown;
-  };
+  } | null;
   status?: ('active' | 'in_progress' | 'archived') | null;
   githubLink?: string | null;
+  /**
+   * GitHub repository URL
+   */
+  github_url?: string | null;
+  /**
+   * Target URL for demo / preview
+   */
+  demo_url?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -396,9 +416,14 @@ export interface ProjectsSelect<T extends boolean = true> {
   title?: T;
   slug?: T;
   description?: T;
+  markdown_description?: T;
+  cta_label?: T;
+  cta_url?: T;
   detailedContent?: T;
   status?: T;
   githubLink?: T;
+  github_url?: T;
+  demo_url?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -488,11 +513,25 @@ export interface HomePage {
   role: string;
   description: string;
   music_provider?: ('ytmusic' | 'lastfm') | null;
-  /**
-   * Link to song on music.youtube.com or youtube.com (e.g. https://music.youtube.com/watch?v=...)
-   */
   ytmusic_url?: string | null;
   lastfm_user?: string | null;
+  /**
+   * Spotify integration is managed live via OAuth endpoints: /api/spotify/now-playing and /api/spotify/login.
+   */
+  spotify_status?: {
+    /**
+     * Playback data is streamed live from the Spotify Web API.
+     */
+    status?: string | null;
+    /**
+     * Public endpoint consumed by the frontend music widget.
+     */
+    now_playing_endpoint?: string | null;
+    /**
+     * Visit /api/spotify/login to authenticate and renew SPOTIFY_REFRESH_TOKEN.
+     */
+    auth_endpoint?: string | null;
+  };
   /**
    * Discord user snowflake ID for real-time presence (e.g. 995737379417640961)
    */
@@ -527,6 +566,13 @@ export interface HomePageSelect<T extends boolean = true> {
   music_provider?: T;
   ytmusic_url?: T;
   lastfm_user?: T;
+  spotify_status?:
+    | T
+    | {
+        status?: T;
+        now_playing_endpoint?: T;
+        auth_endpoint?: T;
+      };
   discord_id?: T;
   discord_username?: T;
   discord_tag?: T;

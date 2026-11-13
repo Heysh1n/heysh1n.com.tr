@@ -45,20 +45,36 @@ const readJsonBody = async <T>(req: {
   data?: unknown
   json?: () => Promise<unknown>
 }): Promise<T> => {
-  if (req.body && typeof req.body === 'object') {
-    return req.body as T
+  // If Payload or an upstream wrapper already parsed the body into req.data
+  if (req.data && typeof req.data === 'object' && Object.keys(req.data).length > 0) {
+    return req.data as T
   }
 
+  // Parse JSON stream from standard Request (Payload CMS v3 Endpoint)
   if (typeof req.json === 'function') {
     try {
-      return (await req.json()) as T
+      const parsed = await req.json()
+      if (parsed && typeof parsed === 'object') {
+        return parsed as T
+      }
     } catch {
-      return {} as T
+      // Body stream might be already consumed or empty
     }
   }
 
+  // Fall back to req.data if present (even if empty object)
   if (req.data && typeof req.data === 'object') {
     return req.data as T
+  }
+
+  // Fall back to req.body if it is a plain object (not a ReadableStream or Buffer)
+  if (
+    req.body &&
+    typeof req.body === 'object' &&
+    typeof (req.body as { getReader?: unknown }).getReader !== 'function' &&
+    !Buffer.isBuffer(req.body)
+  ) {
+    return req.body as T
   }
 
   return {} as T

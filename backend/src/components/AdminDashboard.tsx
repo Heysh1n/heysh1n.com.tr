@@ -13,10 +13,10 @@ interface DashboardCard {
 const mainCards: DashboardCard[] = [
   {
     href: '/panel/globals/home-page',
-    label: 'Home Page & Music',
+    label: 'Home Page & Bio',
     tag: 'Global',
     tagColor: '#a855f7',
-    description: 'Configure profile bio, role, social links, Discord ID, and active YouTube Music track/playlist.',
+    description: 'Configure profile bio, role, social links, Discord presence, and site metadata.',
     icon: '🏠',
   },
   {
@@ -346,6 +346,115 @@ export const AdminDashboard = () => (
         </div>
       </div>
 
+      {/* Music & Spotify Status Block */}
+      <div
+        style={{
+          backgroundColor: 'rgba(20, 20, 30, 0.75)',
+          border: '1px solid rgba(29, 185, 84, 0.3)',
+          borderRadius: '12px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '16px',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '20px 24px',
+          marginBottom: '36px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div
+            style={{
+              backgroundColor: 'rgba(29, 185, 84, 0.15)',
+              border: '1px solid rgba(29, 185, 84, 0.4)',
+              borderRadius: '10px',
+              color: '#1ed760',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '44px',
+              height: '44px',
+              fontSize: '22px',
+            }}
+          >
+            🎵
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{ color: '#ffffff', fontSize: '15px', fontWeight: 700 }}>
+                Live Music Stream
+              </span>
+              <span
+                style={{
+                  backgroundColor: 'rgba(29, 185, 84, 0.18)',
+                  border: '1px solid rgba(29, 185, 84, 0.4)',
+                  borderRadius: '5px',
+                  color: '#1ed760',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  letterSpacing: '0.05em',
+                  padding: '2px 8px',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Spotify API Online
+              </span>
+            </div>
+            <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>
+              Live player pulls currently playing and recently played tracks directly from{' '}
+              <code style={{ color: '#1ed760' }}>/api/spotify/now-playing</code>.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <a
+            href="/api/spotify/now-playing"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              alignItems: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '8px',
+              color: '#f1f5f9',
+              display: 'inline-flex',
+              fontSize: '12px',
+              fontWeight: 600,
+              gap: '6px',
+              padding: '8px 14px',
+              textDecoration: 'none',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span>Live Feed</span>
+            <span>↗</span>
+          </a>
+          <a
+            href="/api/spotify/login"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              alignItems: 'center',
+              backgroundColor: 'rgba(29, 185, 84, 0.15)',
+              border: '1px solid rgba(29, 185, 84, 0.4)',
+              borderRadius: '8px',
+              color: '#1ed760',
+              display: 'inline-flex',
+              fontSize: '12px',
+              fontWeight: 600,
+              gap: '6px',
+              padding: '8px 14px',
+              textDecoration: 'none',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span>Spotify Auth</span>
+            <span>↗</span>
+          </a>
+        </div>
+      </div>
+
       {/* System Quick Specs Box */}
       <div
         style={{
@@ -369,7 +478,7 @@ export const AdminDashboard = () => (
         </div>
         <div>
           <span style={{ color: '#64748b', display: 'block', fontSize: '11px', textTransform: 'uppercase' }}>Endpoints</span>
-          <span style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600 }}>/api/validate-license | /api/ytmusic</span>
+          <span style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600 }}>/api/validate-license | /api/spotify/now-playing</span>
         </div>
         <div>
           <span style={{ color: '#64748b', display: 'block', fontSize: '11px', textTransform: 'uppercase' }}>Frontend Hub</span>

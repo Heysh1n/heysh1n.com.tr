@@ -11,7 +11,12 @@ export interface ProjectDocument {
   title: string
   slug: string
   description: string
-  detailedContent: SerializedEditorState
+  detailedContent?: SerializedEditorState | null
+  markdown_description?: string | null
+  cta_label?: string | null
+  cta_url?: string | null
+  github_url?: string | null
+  demo_url?: string | null
   status?: ProjectStatus | null
   githubLink?: string | null
 }
@@ -89,9 +94,33 @@ export const Projects: CollectionConfig = {
       required: true,
     },
     {
+      name: 'markdown_description',
+      type: 'textarea',
+      required: false,
+      admin: {
+        description: 'Full project details / README in Markdown format shown inside the modal',
+      },
+    },
+    {
+      name: 'cta_label',
+      type: 'text',
+      required: false,
+      admin: {
+        description: "Modal button label, e.g., 'Купить ключ' or 'Открыть на GitHub'",
+      },
+    },
+    {
+      name: 'cta_url',
+      type: 'text',
+      required: false,
+      admin: {
+        description: 'Target URL for the modal action button',
+      },
+    },
+    {
       name: 'detailedContent',
       type: 'richText',
-      required: true,
+      required: false,
     },
     {
       name: 'status',
@@ -106,6 +135,24 @@ export const Projects: CollectionConfig = {
       name: 'githubLink',
       type: 'text',
       admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'github_url',
+      type: 'text',
+      required: false,
+      admin: {
+        description: 'GitHub repository URL',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'demo_url',
+      type: 'text',
+      required: false,
+      admin: {
+        description: 'Target URL for demo / preview',
         position: 'sidebar',
       },
     },

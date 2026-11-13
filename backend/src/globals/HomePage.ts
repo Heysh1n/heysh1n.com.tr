@@ -19,6 +19,11 @@ export interface HomePageGlobal {
   discord_id?: string | null
   discord_username?: string | null
   discord_tag?: string | null
+  spotify_status?: {
+    status?: string | null
+    now_playing_endpoint?: string | null
+    auth_endpoint?: string | null
+  } | null
   socials?: HomePageSocial[] | null
 }
 
@@ -60,24 +65,74 @@ export const HomePage: GlobalConfig = {
       name: 'music_provider',
       label: 'Music Provider',
       type: 'select',
+      required: false,
       defaultValue: 'ytmusic',
       options: [
         { label: 'YouTube Music (Primary)', value: 'ytmusic' },
         { label: 'Last.fm (Legacy)', value: 'lastfm' },
       ],
+      admin: {
+        position: 'sidebar',
+      },
     },
     {
       name: 'ytmusic_url',
-      label: 'YouTube Music URL (Track or Playlist)',
+      label: 'YouTube Music URL',
       type: 'text',
+      required: false,
       admin: {
-        description: 'Link to song on music.youtube.com or youtube.com (e.g. https://music.youtube.com/watch?v=...)',
+        position: 'sidebar',
       },
     },
     {
       name: 'lastfm_user',
-      label: 'Last.fm Username (Legacy)',
+      label: 'Last.fm Username',
       type: 'text',
+      required: false,
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'spotify_status',
+      label: 'Spotify Integration',
+      type: 'group',
+      admin: {
+        description:
+          'Spotify integration is managed live via OAuth endpoints: /api/spotify/now-playing and /api/spotify/login.',
+      },
+      fields: [
+        {
+          name: 'status',
+          type: 'text',
+          label: 'Status',
+          defaultValue: 'Active via Spotify Web API (/api/spotify/now-playing)',
+          admin: {
+            readOnly: true,
+            description: 'Playback data is streamed live from the Spotify Web API.',
+          },
+        },
+        {
+          name: 'now_playing_endpoint',
+          type: 'text',
+          label: 'Now Playing Endpoint',
+          defaultValue: '/api/spotify/now-playing',
+          admin: {
+            readOnly: true,
+            description: 'Public endpoint consumed by the frontend music widget.',
+          },
+        },
+        {
+          name: 'auth_endpoint',
+          type: 'text',
+          label: 'Authorization Endpoint',
+          defaultValue: '/api/spotify/login',
+          admin: {
+            readOnly: true,
+            description: 'Visit /api/spotify/login to authenticate and renew SPOTIFY_REFRESH_TOKEN.',
+          },
+        },
+      ],
     },
     {
       name: 'discord_id',
@@ -108,6 +163,9 @@ export const HomePage: GlobalConfig = {
     {
       name: 'socials',
       type: 'array',
+      access: {
+        read: () => true,
+      },
       labels: {
         singular: 'Social Link',
         plural: 'Social Links',
