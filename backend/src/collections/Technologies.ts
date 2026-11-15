@@ -3,7 +3,18 @@ import type { CollectionConfig } from 'payload'
 import { isAdminOrOwner } from './Users'
 import { triggerCloudflareDeploy } from '../hooks/triggerCloudflareDeploy'
 
-export type TechnologyCategory = 'os_tools' | 'languages' | 'networks' | 'game_servers'
+export type TechnologyCategory =
+  | 'os'
+  | 'tools'
+  | 'os_tools'
+  | 'languages'
+  | 'networks'
+  | 'game_servers'
+  | 'frameworks'
+  | 'databases'
+  | 'devops'
+  | 'security'
+  | 'ui_ux'
 
 export interface TechnologyDocument {
   name: string
@@ -11,10 +22,17 @@ export interface TechnologyDocument {
 }
 
 const technologyCategoryOptions = [
-  { label: 'OS Tools', value: 'os_tools' },
+  { label: 'OS', value: 'os' },
+  { label: 'Tools', value: 'tools' },
+  { label: 'OS & Tools', value: 'os_tools' },
   { label: 'Languages', value: 'languages' },
   { label: 'Networks', value: 'networks' },
   { label: 'Game Servers', value: 'game_servers' },
+  { label: 'Frameworks', value: 'frameworks' },
+  { label: 'Databases', value: 'databases' },
+  { label: 'DevOps', value: 'devops' },
+  { label: 'Security', value: 'security' },
+  { label: 'UI/UX', value: 'ui_ux' },
 ] satisfies Array<{ label: string; value: TechnologyCategory }>
 
 export const Technologies: CollectionConfig = {
@@ -31,6 +49,7 @@ export const Technologies: CollectionConfig = {
   },
   admin: {
     useAsTitle: 'name',
+    group: 'Portfolio & Content',
     defaultColumns: ['name', 'category', 'updatedAt'],
   },
   typescript: {
@@ -41,14 +60,21 @@ export const Technologies: CollectionConfig = {
   },
   fields: [
     {
-      name: 'name',
-      type: 'text',
-      required: true,
-    },
-    {
-      name: 'category',
-      type: 'select',
-      options: technologyCategoryOptions,
+      type: 'row',
+      fields: [
+        {
+          name: 'name',
+          label: 'Name',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'category',
+          label: 'Category',
+          type: 'select',
+          options: technologyCategoryOptions,
+        },
+      ],
     },
   ],
 }

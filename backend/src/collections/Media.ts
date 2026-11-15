@@ -5,6 +5,9 @@ export const Media: CollectionConfig = {
   access: {
     read: () => true,
   },
+  admin: {
+    group: 'Portfolio & Content',
+  },
   fields: [
     {
       name: 'alt',

@@ -10,6 +10,9 @@ export interface DiscordUser {
   username: string;
   discriminator: string;
   avatar: string | null;
+  banner?: string | null;
+  banner_color?: string | null;
+  accent_color?: number | null;
   global_name?: string | null;
   avatar_decoration_data?: {
     asset: string;

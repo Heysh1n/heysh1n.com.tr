@@ -14,7 +14,6 @@ interface Props {
   ctaUrl?: string | null;
   ctaLabel?: string | null;
   githubUrl?: string | null;
-  githubLink?: string | null;
   demoUrl?: string | null;
 }
 
@@ -30,7 +29,6 @@ const {
   ctaUrl,
   ctaLabel,
   githubUrl,
-  githubLink,
   demoUrl,
 } = Astro.props;
 
@@ -45,7 +43,7 @@ const tagsList: string[] = Array.isArray(tags)
     ? tags.split(',').map((t) => t.trim()).filter(Boolean)
     : [];
 
-const resolvedGithub = githubUrl || githubLink || null;
+const resolvedGithub = githubUrl || null;
 const resolvedCtaUrl = ctaUrl || resolvedGithub || demoUrl || null;
 const resolvedCtaLabel =
   ctaLabel ||
@@ -58,9 +56,25 @@ const resolvedCtaLabel =
         : 'Перейти к проекту');
 ---
 
-<dialog id={id} class="modal glassmorphism" aria-labelledby={`${id}-title`} closedby="any">
+<dialog
+  id={id}
+  class="modal glassmorphism bg-[#0f0717]/90 backdrop-blur-xl border border-white/10 shadow-2xl rounded-3xl"
+  aria-labelledby={`${id}-title`}
+  closedby="any"
+>
+  <button
+    type="button"
+    class="modal_close absolute top-5 right-5 z-20 bg-white/5 hover:bg-white/10 rounded-full p-2 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+    data-modal-close
+    aria-label={`Закрыть ${title}`}
+  >
+    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  </button>
+
   <div class="modal_inner">
-    <div class="modal_header">
+    <div class="modal_header pr-10">
       <div class="modal_header_info">
         <h2 id={`${id}-title`} class="modal_title">{title}</h2>
         <div class="modal_meta_row">
@@ -78,20 +92,12 @@ const resolvedCtaLabel =
           )}
         </div>
       </div>
-      <button
-        type="button"
-        class="modal_close"
-        data-modal-close
-        aria-label={`Закрыть ${title}`}
-      >
-        ✕
-      </button>
     </div>
 
     {description && <p class="modal_description">{description}</p>}
 
     {renderedHtml && (
-      <div class="modal_body markdown-body" set:html={renderedHtml} />
+      <div class="modal_body markdown-body text-zinc-300 leading-relaxed space-y-4" set:html={renderedHtml} />
     )}
 
     <slot />
@@ -103,7 +109,7 @@ const resolvedCtaLabel =
             href={resolvedCtaUrl}
             target="_blank"
             rel="noopener noreferrer"
-            class="modal_cta_primary"
+            class="modal_cta_primary w-full bg-purple-600 hover:bg-purple-500 text-white font-medium py-3 px-6 rounded-xl transition-all shadow-[0_0_15px_rgba(168,85,247,0.4)] flex items-center justify-center gap-2"
           >
             <span>{resolvedCtaLabel}</span>
             <span class="cta_arrow" aria-hidden="true">↗</span>
@@ -142,16 +148,16 @@ const resolvedCtaLabel =
     position: fixed;
     inset: 0;
     margin: auto;
-    width: min(92vw, 760px);
+    width: min(92vw, 720px);
     max-height: min(85vh, 85dvh);
     padding: 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    background: rgba(14, 4, 18, 0.94);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    color: #e2e8f0;
-    box-shadow: 0 24px 64px 0 rgba(0, 0, 0, 0.75);
+    border-radius: 24px;
+    background: rgba(15, 7, 23, 0.9);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    color: #e4e4e7;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 40px rgba(168, 85, 247, 0.18);
     overflow: hidden;
     outline: none;
     opacity: 0;
@@ -206,10 +212,11 @@ const resolvedCtaLabel =
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
-    padding: clamp(1.25rem, 1rem + 2vw, 2.25rem);
+    padding: clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem);
     overflow-y: auto;
     max-height: min(85vh, 85dvh);
     box-sizing: border-box;
+    scrollbar-gutter: stable;
   }
 
   .modal_header {
@@ -229,7 +236,7 @@ const resolvedCtaLabel =
   }
 
   .modal_title {
-    font-size: clamp(1.25rem, 1.1rem + 1vw, 1.75rem);
+    font-size: clamp(1.3rem, 1.15rem + 0.8vw, 1.65rem);
     font-weight: 700;
     color: #ffffff;
     margin: 0;
@@ -255,28 +262,32 @@ const resolvedCtaLabel =
     letter-spacing: 0.02em;
     padding: 0.2rem 0.55rem;
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    color: #d4d4d8;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(196, 140, 255, 0.2);
+    color: #e9d5ff;
     white-space: nowrap;
   }
 
   .modal_description {
     color: #a1a1aa;
-    font-size: clamp(0.9rem, 0.85rem + 0.3vw, 1rem);
-    line-height: 1.5;
+    font-size: clamp(0.9rem, 0.85rem + 0.25vw, 0.98rem);
+    line-height: 1.6;
     margin: 0;
   }
 
   .modal_close {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    z-index: 20;
     flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     color: #a1a1aa;
-    font-size: 1.15rem;
     width: 2.25rem;
     height: 2.25rem;
-    border-radius: 8px;
+    border-radius: 9999px;
+    padding: 0.5rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -285,8 +296,8 @@ const resolvedCtaLabel =
   }
 
   .modal_close:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
     color: #ffffff;
     transform: scale(1.05);
   }
@@ -296,45 +307,46 @@ const resolvedCtaLabel =
   }
 
   .modal_body {
-    font-size: clamp(0.85rem, 0.8rem + 0.25vw, 0.95rem);
-    line-height: 1.65;
+    font-size: clamp(0.88rem, 0.84rem + 0.2vw, 0.96rem);
+    line-height: 1.7;
     color: #d4d4d8;
   }
 
   .modal_footer {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem;
+    flex-direction: column;
+    gap: 0.65rem;
     padding-top: 1rem;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
   }
 
   .modal_cta_primary {
+    width: 100%;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    padding: 0.7rem 1.35rem;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 10px;
-    color: #f4f4f5;
-    font-size: 0.9rem;
+    padding: 0.75rem 1.5rem;
+    background: #9333ea;
+    border: 1px solid rgba(216, 180, 254, 0.35);
+    border-radius: 12px;
+    color: #ffffff;
+    font-size: 0.95rem;
     font-weight: 500;
     text-decoration: none;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
     transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
                 border-color 0.2s ease,
                 background 0.2s ease,
-                color 0.2s ease;
+                box-shadow 0.2s ease;
   }
 
   .modal_cta_primary:hover {
-    transform: translateY(-2px);
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.25);
-    color: #ffffff;
+    transform: translateY(-1px);
+    background: #a855f7;
+    border-color: rgba(233, 213, 255, 0.5);
+    box-shadow: 0 0 22px rgba(168, 85, 247, 0.55);
   }
 
   .modal_cta_primary:active {
@@ -342,14 +354,16 @@ const resolvedCtaLabel =
   }
 
   .modal_cta_secondary {
+    width: 100%;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.4rem;
     padding: 0.68rem 1.15rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    color: #a1a1aa;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: #d4d4d8;
     font-size: 0.88rem;
     font-weight: 500;
     text-decoration: none;
@@ -357,16 +371,30 @@ const resolvedCtaLabel =
   }
 
   .modal_cta_secondary:hover {
-    background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(255, 255, 255, 0.18);
-    color: #f4f4f5;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
     transform: translateY(-1px);
   }
 
   .cta_arrow {
     font-size: 1.05rem;
     line-height: 1;
+    color: inherit;
+    text-shadow: none;
     transition: transform 0.18s ease;
+  }
+
+  .modal_cta_primary span {
+    color: #ffffff;
+    font-size: inherit;
+    text-shadow: none;
+  }
+
+  .modal_cta_secondary span {
+    color: inherit;
+    font-size: inherit;
+    text-shadow: none;
   }
 
   .modal_cta_primary:hover .cta_arrow,

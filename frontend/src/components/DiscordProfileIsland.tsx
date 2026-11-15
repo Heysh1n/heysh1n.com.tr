@@ -13,6 +13,7 @@ interface DiscordProfileIslandProps {
 const DEFAULT_DISCORD_ID = '995737379417640961';
 const LANYARD_WS_URL = 'wss://api.lanyard.rest/socket';
 const LANYARD_REST_URL = 'https://api.lanyard.rest/v1/users/';
+const DCDN_PROFILE_URL = 'https://dcdn.dstn.to/profile/';
 
 function parseDiscordAssetUrl(raw?: string | null, applicationId?: string | null): string | null {
   if (!raw) return null;
@@ -78,6 +79,11 @@ export default function DiscordProfileIsland({
   fallbackStatus = 'online',
 }: DiscordProfileIslandProps) {
   const [data, setData] = useState<LanyardData | null>(null);
+  const [profileMeta, setProfileMeta] = useState<{
+    banner?: string | null;
+    accent_color?: number | null;
+    banner_color?: string | null;
+  } | null>(null);
   const [elapsedTime, setElapsedTime] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
@@ -85,7 +91,7 @@ export default function DiscordProfileIsland({
   const heartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initial REST fetch
+  // Initial REST fetch (Lanyard + Discord Profile metadata for banner/accent_color)
   useEffect(() => {
     let active = true;
 
@@ -102,7 +108,27 @@ export default function DiscordProfileIsland({
       }
     };
 
+    const fetchProfileBanner = async () => {
+      try {
+        const res = await fetch(`${DCDN_PROFILE_URL}${discordId}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!active) return;
+        const userObj = json?.user || json?.user_profile;
+        if (userObj) {
+          setProfileMeta({
+            banner: userObj.banner ?? json?.user_profile?.banner ?? null,
+            accent_color: userObj.accent_color ?? json?.user_profile?.accent_color ?? null,
+            banner_color: userObj.banner_color ?? null,
+          });
+        }
+      } catch {
+        // silent fallback
+      }
+    };
+
     fetchRest();
+    fetchProfileBanner();
 
     return () => {
       active = false;
@@ -236,6 +262,24 @@ export default function DiscordProfileIsland({
       }?size=160`
     : fallbackAvatar;
 
+  const userId = discordUser?.id || discordId;
+  const resolvedBanner = discordUser?.banner || profileMeta?.banner;
+  const resolvedAccentColor = discordUser?.accent_color ?? profileMeta?.accent_color;
+
+  const bannerUrl =
+    userId && resolvedBanner
+      ? `https://cdn.discordapp.com/banners/${userId}/${resolvedBanner}.${
+          resolvedBanner.startsWith('a_') ? 'gif' : 'png'
+        }?size=512`
+      : null;
+
+  const accentColorHex =
+    !bannerUrl && typeof resolvedAccentColor === 'number'
+      ? `#${resolvedAccentColor.toString(16).padStart(6, '0')}`
+      : !bannerUrl && profileMeta?.banner_color
+        ? profileMeta.banner_color
+        : null;
+
   // Discord Guild / Clan support (primary_guild or clan)
   const clan = discordUser?.primary_guild || discordUser?.clan;
   const clanTag = clan?.identity_enabled !== false && clan?.tag ? clan.tag : fallbackTag;
@@ -289,173 +333,196 @@ export default function DiscordProfileIsland({
 
   return (
     <div className="discord_widget">
-      {/* Profile Header */}
-      <div className="discord_profile_header">
-        <div className="discord_avatar_wrapper">
-          <img
-            src={avatarUrl}
-            alt={discordUser?.global_name || displayName}
-            className="discord_avatar_img"
-            loading="lazy"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src = fallbackAvatar;
-            }}
-          />
-          <span className={`discord_status_badge status_${status}`} title={statusLabel} />
+      {/* Dynamic Discord Banner or Accent Color Glass Tint */}
+      {bannerUrl ? (
+        <img
+          src={bannerUrl}
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 w-full h-full object-cover object-center z-0 opacity-20 brightness-75"
+          loading="lazy"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+          }}
+        />
+      ) : accentColorHex ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 w-full h-full z-0"
+          style={{ backgroundColor: accentColorHex, opacity: 0.2 }}
+        />
+      ) : null}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0f0717]/40 via-transparent to-[#0f0717]/80 z-0 pointer-events-none"></div>
+
+      <div className="relative z-10 flex flex-col w-full drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+        {/* Profile Header */}
+        <div className="discord_profile_header">
+          <div className="discord_avatar_wrapper">
+            <img
+              src={avatarUrl}
+              alt={discordUser?.global_name || displayName}
+              className="discord_avatar_img"
+              loading="lazy"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = fallbackAvatar;
+              }}
+            />
+            <span className={`discord_status_badge status_${status}`} title={statusLabel} />
+          </div>
+
+          <div className="discord_user_meta">
+            <div className="discord_name_row">
+              <span className="discord_display_name">
+                {discordUser?.global_name || displayName}
+              </span>
+              {clanTag && (
+                <span className="discord_guild_tag" title={`Guild: ${clanTag}`}>
+                  {clanBadge && (
+                    <img
+                      src={clanBadge}
+                      alt=""
+                      className="discord_guild_icon"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <span className="discord_guild_text">
+                    {clanBadge ? clanTag : (clanTag.startsWith('[') ? clanTag : `[${clanTag}]`)}
+                  </span>
+                </span>
+              )}
+
+              {/* Active devices badges right next to the name */}
+              <div className="discord_devices">
+                {data?.active_on_discord_desktop && (
+                  <span className="discord_device_badge" title="Desktop">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                  </span>
+                )}
+                {data?.active_on_discord_mobile && (
+                  <span className="discord_device_badge" title="Mobile">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                      <line x1="12" y1="18" x2="12.01" y2="18" />
+                    </svg>
+                  </span>
+                )}
+                {data?.active_on_discord_web && (
+                  <span className="discord_device_badge" title="Web">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="discord_handle_row">
+              <span className="discord_handle">@{discordUser?.username || username}</span>
+              <button
+                type="button"
+                className="discord_copy_btn"
+                onClick={handleCopy}
+                title="Copy username"
+              >
+                {copied ? '✓ Copied' : 'copy'}
+              </button>
+            </div>
+
+            {customStatus && (
+              <div className="discord_custom_status">
+                {customStatus.emoji && (
+                  <span className="discord_custom_status_emoji">
+                    {customStatus.emoji.id ? (
+                      <img
+                        src={`https://cdn.discordapp.com/emojis/${customStatus.emoji.id}.${
+                          customStatus.emoji.animated ? 'gif' : 'png'
+                        }?size=24`}
+                        alt={customStatus.emoji.name}
+                        className="discord_emoji_img"
+                      />
+                    ) : (
+                      customStatus.emoji.name
+                    )}
+                  </span>
+                )}
+                {customStatus.state && (
+                  <span className="discord_custom_status_text">{customStatus.state}</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="discord_user_meta">
-          <div className="discord_name_row">
-            <span className="discord_display_name">
-              {discordUser?.global_name || displayName}
-            </span>
-            {clanTag && (
-              <span className="discord_guild_tag" title={`Guild: ${clanTag}`}>
-                {clanBadge && (
-                  <img
-                    src={clanBadge}
-                    alt=""
-                    className="discord_guild_icon"
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                )}
-                <span className="discord_guild_text">
-                  {clanBadge ? clanTag : (clanTag.startsWith('[') ? clanTag : `[${clanTag}]`)}
+        {/* Activity Section (Game / Status - Spotify ignored to prevent duplicate with player.sh) */}
+        <div className="discord_activity_box">
+          {gameActivity ? (
+            <div className="discord_game_activity">
+              <div className="discord_activity_label">
+                <span className="discord_activity_pulse" />
+                <span>
+                  {gameActivity.type === 1
+                    ? 'Streaming'
+                    : gameActivity.type === 3
+                      ? 'Watching'
+                      : gameActivity.type === 5
+                        ? 'Competing'
+                        : 'Playing'}
                 </span>
-              </span>
-            )}
-
-            {/* Active devices badges right next to the name */}
-            <div className="discord_devices">
-              {data?.active_on_discord_desktop && (
-                <span className="discord_device_badge" title="Desktop">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                    <line x1="8" y1="21" x2="16" y2="21" />
-                    <line x1="12" y1="17" x2="12" y2="21" />
-                  </svg>
-                </span>
-              )}
-              {data?.active_on_discord_mobile && (
-                <span className="discord_device_badge" title="Mobile">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-                    <line x1="12" y1="18" x2="12.01" y2="18" />
-                  </svg>
-                </span>
-              )}
-              {data?.active_on_discord_web && (
-                <span className="discord_device_badge" title="Web">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="2" y1="12" x2="22" y2="12" />
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                  </svg>
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="discord_handle_row">
-            <span className="discord_handle">@{discordUser?.username || username}</span>
-            <button
-              type="button"
-              className="discord_copy_btn"
-              onClick={handleCopy}
-              title="Copy username"
-            >
-              {copied ? '✓ Copied' : 'copy'}
-            </button>
-          </div>
-
-          {customStatus && (
-            <div className="discord_custom_status">
-              {customStatus.emoji && (
-                <span className="discord_custom_status_emoji">
-                  {customStatus.emoji.id ? (
+              </div>
+              <div className="discord_activity_content">
+                {mainImgUrl && (
+                  <div className="discord_game_image_wrapper">
                     <img
-                      src={`https://cdn.discordapp.com/emojis/${customStatus.emoji.id}.${
-                        customStatus.emoji.animated ? 'gif' : 'png'
-                      }?size=24`}
-                      alt={customStatus.emoji.name}
-                      className="discord_emoji_img"
+                      src={mainImgUrl}
+                      alt={mainAlt}
+                      title={mainAlt}
+                      className="discord_game_large_img"
+                      loading="lazy"
+                      onError={(e) => handleImageError(e, mainRawAsset)}
                     />
-                  ) : (
-                    customStatus.emoji.name
+                    {secondaryImgUrl && (
+                      <img
+                        src={secondaryImgUrl}
+                        alt={secondaryTitle}
+                        title={secondaryTitle}
+                        className="discord_game_small_img"
+                        loading="lazy"
+                        onError={(e) => handleImageError(e, secondaryRawAsset)}
+                      />
+                    )}
+                  </div>
+                )}
+                <div className="discord_game_info">
+                  <span className="discord_game_name">{gameActivity.name}</span>
+                  {gameActivity.details && (
+                    <span className="discord_game_details">{gameActivity.details}</span>
                   )}
-                </span>
-              )}
-              {customStatus.state && (
-                <span className="discord_custom_status_text">{customStatus.state}</span>
-              )}
+                  {gameActivity.state && (
+                    <span className="discord_game_state">{gameActivity.state}</span>
+                  )}
+                  {elapsedTime && <span className="discord_game_timer">{elapsedTime}</span>}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="discord_idle_activity">
+              <div className={`status_beacon_wrap beacon_${status}`}>
+                <span className="status_beacon_ring" />
+                <span className="status_beacon_dot" />
+              </div>
+              <span className={`discord_status_text text_${status}`}>{statusLabel}</span>
             </div>
           )}
         </div>
-      </div>
-
-      {/* Activity Section (Game / Status - Spotify ignored to prevent duplicate with player.sh) */}
-      <div className="discord_activity_box">
-        {gameActivity ? (
-          <div className="discord_game_activity">
-            <div className="discord_activity_label">
-              <span className="discord_activity_pulse" />
-              <span>
-                {gameActivity.type === 1
-                  ? 'Streaming'
-                  : gameActivity.type === 3
-                    ? 'Watching'
-                    : gameActivity.type === 5
-                      ? 'Competing'
-                      : 'Playing'}
-              </span>
-            </div>
-            <div className="discord_activity_content">
-              {mainImgUrl && (
-                <div className="discord_game_image_wrapper">
-                  <img
-                    src={mainImgUrl}
-                    alt={mainAlt}
-                    title={mainAlt}
-                    className="discord_game_large_img"
-                    loading="lazy"
-                    onError={(e) => handleImageError(e, mainRawAsset)}
-                  />
-                  {secondaryImgUrl && (
-                    <img
-                      src={secondaryImgUrl}
-                      alt={secondaryTitle}
-                      title={secondaryTitle}
-                      className="discord_game_small_img"
-                      loading="lazy"
-                      onError={(e) => handleImageError(e, secondaryRawAsset)}
-                    />
-                  )}
-                </div>
-              )}
-              <div className="discord_game_info">
-                <span className="discord_game_name">{gameActivity.name}</span>
-                {gameActivity.details && (
-                  <span className="discord_game_details">{gameActivity.details}</span>
-                )}
-                {gameActivity.state && (
-                  <span className="discord_game_state">{gameActivity.state}</span>
-                )}
-                {elapsedTime && <span className="discord_game_timer">{elapsedTime}</span>}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="discord_idle_activity">
-            <div className={`status_beacon_wrap beacon_${status}`}>
-              <span className="status_beacon_ring" />
-              <span className="status_beacon_dot" />
-            </div>
-            <span className={`discord_status_text text_${status}`}>{statusLabel}</span>
-          </div>
-        )}
       </div>
     </div>
   );

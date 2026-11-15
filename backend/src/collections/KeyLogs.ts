@@ -15,7 +15,7 @@ export const KeyLogs: CollectionConfig = {
     plural: 'Key Logs',
   },
   admin: {
-    group: 'Logs',
+    group: 'SFC Pro Management',
     defaultColumns: ['licenseKey', 'hwid', 'ipAddress', 'createdAt'],
   },
   typescript: {
@@ -24,6 +24,7 @@ export const KeyLogs: CollectionConfig = {
   fields: [
     {
       name: 'licenseKey',
+      label: 'License Key',
       type: 'relationship',
       relationTo: 'access-keys',
       required: true,
@@ -33,6 +34,7 @@ export const KeyLogs: CollectionConfig = {
     },
     {
       name: 'hwid',
+      label: 'HWID',
       type: 'text',
       required: true,
       admin: {
@@ -41,6 +43,7 @@ export const KeyLogs: CollectionConfig = {
     },
     {
       name: 'ipAddress',
+      label: 'IP Address',
       type: 'text',
       admin: {
         description: 'Client IP address captured at validation time.',

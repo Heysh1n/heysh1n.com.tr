@@ -1,4 +1,3 @@
-import type { SerializedEditorState } from 'lexical'
 import type { CollectionConfig, FieldHook } from 'payload'
 
 import { isAdminOrOwner } from './Users'
@@ -11,14 +10,12 @@ export interface ProjectDocument {
   title: string
   slug: string
   description: string
-  detailedContent?: SerializedEditorState | null
   markdown_description?: string | null
   cta_label?: string | null
   cta_url?: string | null
   github_url?: string | null
   demo_url?: string | null
   status?: ProjectStatus | null
-  githubLink?: string | null
 }
 
 const projectStatusOptions = [
@@ -61,6 +58,7 @@ export const Projects: CollectionConfig = {
   },
   admin: {
     useAsTitle: 'title',
+    group: 'Portfolio & Content',
     defaultColumns: ['title', 'status', 'slug', 'updatedAt'],
   },
   typescript: {
@@ -71,90 +69,100 @@ export const Projects: CollectionConfig = {
   },
   fields: [
     {
-      name: 'title',
-      type: 'text',
-      required: true,
-    },
-    {
-      name: 'slug',
-      type: 'text',
-      required: true,
-      unique: true,
-      index: true,
-      hooks: {
-        beforeValidate: [populateSlug],
-      },
-      admin: {
-        position: 'sidebar',
-      },
-    },
-    {
-      name: 'description',
-      type: 'textarea',
-      required: true,
-    },
-    {
-      name: 'markdown_description',
-      type: 'textarea',
-      required: false,
-      admin: {
-        description: 'Full project details / README in Markdown format shown inside the modal',
-      },
-    },
-    {
-      name: 'cta_label',
-      type: 'text',
-      required: false,
-      admin: {
-        description: "Modal button label, e.g., 'Купить ключ' or 'Открыть на GitHub'",
-      },
-    },
-    {
-      name: 'cta_url',
-      type: 'text',
-      required: false,
-      admin: {
-        description: 'Target URL for the modal action button',
-      },
-    },
-    {
-      name: 'detailedContent',
-      type: 'richText',
-      required: false,
-    },
-    {
-      name: 'status',
-      type: 'select',
-      options: projectStatusOptions,
-      defaultValue: 'in_progress',
-      admin: {
-        position: 'sidebar',
-      },
-    },
-    {
-      name: 'githubLink',
-      type: 'text',
-      admin: {
-        position: 'sidebar',
-      },
-    },
-    {
-      name: 'github_url',
-      type: 'text',
-      required: false,
-      admin: {
-        description: 'GitHub repository URL',
-        position: 'sidebar',
-      },
-    },
-    {
-      name: 'demo_url',
-      type: 'text',
-      required: false,
-      admin: {
-        description: 'Target URL for demo / preview',
-        position: 'sidebar',
-      },
+      type: 'tabs',
+      tabs: [
+        {
+          label: 'Overview',
+          fields: [
+            {
+              name: 'title',
+              label: 'Title',
+              type: 'text',
+              required: true,
+            },
+            {
+              name: 'slug',
+              label: 'Slug',
+              type: 'text',
+              required: true,
+              unique: true,
+              index: true,
+              hooks: {
+                beforeValidate: [populateSlug],
+              },
+            },
+            {
+              name: 'status',
+              label: 'Status',
+              type: 'select',
+              options: projectStatusOptions,
+              defaultValue: 'in_progress',
+            },
+          ],
+        },
+        {
+          label: 'Content',
+          fields: [
+            {
+              name: 'description',
+              label: 'Summary',
+              type: 'textarea',
+              required: true,
+            },
+            {
+              name: 'markdown_description',
+              label: 'Description.md',
+              type: 'textarea',
+              required: false,
+              admin: {
+                description:
+                  'Full project details / README in Markdown format shown inside the modal',
+              },
+            },
+          ],
+        },
+        {
+          label: 'Links & CTA',
+          fields: [
+            {
+              name: 'github_url',
+              label: 'GitHub Repository URL',
+              type: 'text',
+              required: false,
+              admin: {
+                description: 'GitHub repository URL',
+              },
+            },
+            {
+              name: 'demo_url',
+              label: 'Demo / Preview URL',
+              type: 'text',
+              required: false,
+              admin: {
+                description: 'Target URL for demo / preview',
+              },
+            },
+            {
+              name: 'cta_label',
+              label: 'Call-to-Action Label',
+              type: 'text',
+              required: false,
+              admin: {
+                description: "Modal button label, e.g., 'Купить ключ' or 'Открыть на GitHub'",
+              },
+            },
+            {
+              name: 'cta_url',
+              label: 'Call-to-Action URL',
+              type: 'text',
+              required: false,
+              admin: {
+                description: 'Target URL for the modal action button',
+              },
+            },
+          ],
+        },
+      ],
     },
   ],
 }

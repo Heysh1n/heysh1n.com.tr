@@ -182,36 +182,12 @@ export interface Project {
   id: number;
   title: string;
   slug: string;
+  status?: ('active' | 'in_progress' | 'archived') | null;
   description: string;
   /**
    * Full project details / README in Markdown format shown inside the modal
    */
   markdown_description?: string | null;
-  /**
-   * Modal button label, e.g., 'Купить ключ' or 'Открыть на GitHub'
-   */
-  cta_label?: string | null;
-  /**
-   * Target URL for the modal action button
-   */
-  cta_url?: string | null;
-  detailedContent?: {
-    root: {
-      type: string;
-      children: {
-        type: any;
-        version: number;
-        [k: string]: unknown;
-      }[];
-      direction: ('ltr' | 'rtl') | null;
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-      indent: number;
-      version: number;
-    };
-    [k: string]: unknown;
-  } | null;
-  status?: ('active' | 'in_progress' | 'archived') | null;
-  githubLink?: string | null;
   /**
    * GitHub repository URL
    */
@@ -220,6 +196,14 @@ export interface Project {
    * Target URL for demo / preview
    */
   demo_url?: string | null;
+  /**
+   * Modal button label, e.g., 'Купить ключ' or 'Открыть на GitHub'
+   */
+  cta_label?: string | null;
+  /**
+   * Target URL for the modal action button
+   */
+  cta_url?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -230,7 +214,21 @@ export interface Project {
 export interface Technology {
   id: number;
   name: string;
-  category?: ('os_tools' | 'languages' | 'networks' | 'game_servers') | null;
+  category?:
+    | (
+        | 'os'
+        | 'tools'
+        | 'os_tools'
+        | 'languages'
+        | 'networks'
+        | 'game_servers'
+        | 'frameworks'
+        | 'databases'
+        | 'devops'
+        | 'security'
+        | 'ui_ux'
+      )
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -240,18 +238,33 @@ export interface Technology {
  */
 export interface AccessKey {
   id: number;
+  /**
+   * Identifier or owner name for this key (used to generate the deterministic SFCP license format).
+   */
   keyName: string;
   /**
    * License key used by SFCP clients. Leave blank on creation to auto-generate (SFCP-YEAR-NAME-DDMM).
    */
   license_key?: string | null;
+  /**
+   * Current activation status of the license key. Revoked keys immediately block client access.
+   */
   status: 'active' | 'inactive' | 'revoked';
   /**
-   * Bound automatically on first successful validation.
+   * Hardware ID fingerprint bound automatically on the first successful client validation. Clear to reset binding.
    */
   hwid?: string | null;
+  /**
+   * Optional expiration date and time. Leave empty for a lifetime license.
+   */
   expiresAt?: string | null;
+  /**
+   * Timestamp of the most recent successful validation request from an SFCP client.
+   */
   lastValidatedAt?: string | null;
+  /**
+   * Project associated with this license key.
+   */
   associatedProject?: (number | null) | Project;
   updatedAt: string;
   createdAt: string;
@@ -415,15 +428,13 @@ export interface MediaSelect<T extends boolean = true> {
 export interface ProjectsSelect<T extends boolean = true> {
   title?: T;
   slug?: T;
+  status?: T;
   description?: T;
   markdown_description?: T;
-  cta_label?: T;
-  cta_url?: T;
-  detailedContent?: T;
-  status?: T;
-  githubLink?: T;
   github_url?: T;
   demo_url?: T;
+  cta_label?: T;
+  cta_url?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -512,9 +523,6 @@ export interface HomePage {
   name: string;
   role: string;
   description: string;
-  music_provider?: ('ytmusic' | 'lastfm') | null;
-  ytmusic_url?: string | null;
-  lastfm_user?: string | null;
   /**
    * Spotify integration is managed live via OAuth endpoints: /api/spotify/now-playing and /api/spotify/login.
    */
@@ -544,6 +552,9 @@ export interface HomePage {
    * Guild or Clan tag badge displayed next to the name (e.g. HEYSH1N, DEV, etc.)
    */
   discord_tag?: string | null;
+  music_provider?: ('spotify' | 'ytmusic' | 'lastfm') | null;
+  ytmusic_url?: string | null;
+  lastfm_user?: string | null;
   socials?:
     | {
         platform: string;
@@ -563,9 +574,6 @@ export interface HomePageSelect<T extends boolean = true> {
   name?: T;
   role?: T;
   description?: T;
-  music_provider?: T;
-  ytmusic_url?: T;
-  lastfm_user?: T;
   spotify_status?:
     | T
     | {
@@ -576,6 +584,9 @@ export interface HomePageSelect<T extends boolean = true> {
   discord_id?: T;
   discord_username?: T;
   discord_tag?: T;
+  music_provider?: T;
+  ytmusic_url?: T;
+  lastfm_user?: T;
   socials?:
     | T
     | {

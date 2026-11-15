@@ -142,8 +142,26 @@ export function renderMarkdown(content: string): string {
     return '';
   }
 
+  // Перезаписываем относительные пути к ассетам GitHub в абсолютные raw URL, чтобы избежать 404 при SSG
+  const safeMarkdown = content
+    .replace(
+      /(?:\(|src=")(\/\.github\/assets\/[^)"]+)(?:\)|")/g,
+      (match, path) =>
+        match.replace(path, `https://raw.githubusercontent.com/heysh1n/life-xp-challenge/main${path}`)
+    )
+    .replace(
+      /(?:\(|src=["'])(\.?\/?\.github\/assets\/[^)"']+)(?:\)|["'])/g,
+      (match, path) => {
+        const normalizedPath = path.startsWith('/') ? path : `/${path.replace(/^\.\//, '')}`;
+        return match.replace(
+          path,
+          `https://raw.githubusercontent.com/heysh1n/life-xp-challenge/main${normalizedPath}`
+        );
+      }
+    );
+
   // Парсинг Markdown + KaTeX в HTML при сборке
-  const rawHtml = marked.parse(content, { async: false }) as string;
+  const rawHtml = marked.parse(safeMarkdown, { async: false }) as string;
 
   // Очистка от XSS с сохранением верстки таблиц и формул
   return DOMPurify.sanitize(rawHtml, PURIFY_CONFIG);

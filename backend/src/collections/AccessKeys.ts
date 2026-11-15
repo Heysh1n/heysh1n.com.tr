@@ -72,8 +72,8 @@ export const AccessKeys: CollectionConfig = {
   },
   admin: {
     useAsTitle: 'keyName',
-    group: 'SFCP',
-    defaultColumns: ['keyName', 'license_key', 'status', 'hwid', 'lastValidatedAt'],
+    group: 'SFC Pro Management',
+    defaultColumns: ['keyName', 'license_key', 'hwid', 'status', 'lastValidatedAt', 'createdAt'],
   },
   typescript: {
     interface: 'AccessKey',
@@ -84,11 +84,17 @@ export const AccessKeys: CollectionConfig = {
   fields: [
     {
       name: 'keyName',
+      label: 'Key Name',
       type: 'text',
       required: true,
+      admin: {
+        description:
+          'Identifier or owner name for this key (used to generate the deterministic SFCP license format).',
+      },
     },
     {
       name: 'license_key',
+      label: 'License Key',
       type: 'text',
       unique: true,
       index: true,
@@ -99,26 +105,33 @@ export const AccessKeys: CollectionConfig = {
     },
     {
       name: 'status',
+      label: 'Status',
       type: 'select',
       options: accessKeyStatusOptions,
       defaultValue: 'active',
       required: true,
       admin: {
+        description:
+          'Current activation status of the license key. Revoked keys immediately block client access.',
         position: 'sidebar',
       },
     },
     {
       name: 'hwid',
+      label: 'HWID',
       type: 'text',
       admin: {
-        description: 'Bound automatically on first successful validation.',
+        description:
+          'Hardware ID fingerprint bound automatically on the first successful client validation. Clear to reset binding.',
         position: 'sidebar',
       },
     },
     {
       name: 'expiresAt',
+      label: 'Expires At',
       type: 'date',
       admin: {
+        description: 'Optional expiration date and time. Leave empty for a lifetime license.',
         date: {
           pickerAppearance: 'dayAndTime',
         },
@@ -127,8 +140,11 @@ export const AccessKeys: CollectionConfig = {
     },
     {
       name: 'lastValidatedAt',
+      label: 'Last Validated At',
       type: 'date',
       admin: {
+        description:
+          'Timestamp of the most recent successful validation request from an SFCP client.',
         date: {
           pickerAppearance: 'dayAndTime',
         },
@@ -138,9 +154,11 @@ export const AccessKeys: CollectionConfig = {
     },
     {
       name: 'associatedProject',
+      label: 'Associated Project',
       type: 'relationship',
       relationTo: 'projects',
       admin: {
+        description: 'Project associated with this license key.',
         position: 'sidebar',
       },
     },

@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import MusicWidgetIsland from '../components/MusicWidgetIsland';
 import DiscordProfileIsland from '../components/DiscordProfileIsland';
 import ProjectModal from '../components/ProjectModal.astro';
-import { renderProjectContent, renderMarkdown, lexicalToMarkdown } from '../utils/markdown';
+import { renderMarkdown } from '../utils/markdown';
 
 type PayloadListResponse<T> = {
   docs?: T[];
@@ -27,24 +27,18 @@ type HomePageGlobal = {
 };
 
 type ProjectStatus = 'active' | 'in_progress' | 'archived';
-type TechnologyCategory = 'os_tools' | 'languages' | 'networks' | 'game_servers';
-
-type RichTextNode = {
-  children?: RichTextNode[];
-  fields?: {
-    url?: string;
-  };
-  format?: number | string;
-  listType?: string;
-  tag?: string;
-  text?: string;
-  type?: string;
-  url?: string;
-};
-
-type RichTextContent = {
-  root?: RichTextNode;
-};
+type TechnologyCategory =
+  | 'os'
+  | 'tools'
+  | 'os_tools'
+  | 'languages'
+  | 'networks'
+  | 'game_servers'
+  | 'frameworks'
+  | 'databases'
+  | 'devops'
+  | 'security'
+  | 'ui_ux';
 
 type Project = {
   id?: number | string;
@@ -55,10 +49,8 @@ type Project = {
   cta_label?: string | null;
   cta_url?: string | null;
   github_url?: string | null;
-  githubLink?: string | null;
   demo_url?: string | null;
   tags?: string[] | string | null;
-  detailedContent?: RichTextContent | unknown | null;
   status?: ProjectStatus | null;
 };
 
@@ -82,10 +74,17 @@ const technologiesEndpoint = `${backendUrl}/api/technologies?limit=100&depth=1`;
 const payloadFetchTimeoutMs = 25000;
 
 const categoryLabels: Record<TechnologyCategory, string> = {
+  os: 'OS',
+  tools: 'Tools',
   os_tools: 'OS & Tools',
   languages: 'Languages',
   networks: 'Networks',
   game_servers: 'Game Servers',
+  frameworks: 'Frameworks',
+  databases: 'Databases',
+  devops: 'DevOps',
+  security: 'Security',
+  ui_ux: 'UI/UX',
 };
 
 const statusLabels: Record<ProjectStatus, string> = {
@@ -321,41 +320,45 @@ const heroDesc = textOrFallback(
 const projects = fetchedProjects.length > 0 ? fetchedProjects : fallbackProjects;
 const technologies = fetchedTechnologies.length > 0 ? fetchedTechnologies : fallbackTechnologies;
 
-const fallbackTagsMap: Record<string, string[]> = {
-  sfcp: ['Python', 'FastAPI', 'HWID Security', 'AI Pipeline'],
-  sfc: ['Python', 'CLI', 'TUI', 'Context Extractor'],
-  'ahk-unix': ['C++20', 'Linux evdev', 'uinput', 'System Daemon'],
-  'ai-skill': ['AI Agents', '5Whys', 'Prompt Engineering', 'Astro / Payload'],
-};
-
 const projectCards = projects.map((project, index) => {
   const fallbackProject = fallbackProjects.find(
     (fp) => fp.slug === project.slug || fp.title.toLowerCase() === project.title.toLowerCase()
   );
 
-  // Parse project.markdown_description (fallback to detailedContent or fallbackProjects rich markdown, or description)
-  const lexicalContent = project.detailedContent ? lexicalToMarkdown(project.detailedContent).trim() : '';
-  const isPlaceholderLexical = !lexicalContent || lexicalContent.includes("Don't Worry Click on Block");
-
+  // Parse project.markdown_description (fallback to fallbackProjects rich markdown, or description)
   const rawMarkdown =
     (typeof project.markdown_description === 'string' && project.markdown_description.trim()) ||
-    (!isPlaceholderLexical ? lexicalContent : '') ||
     (fallbackProject?.markdown_description && fallbackProject.markdown_description.trim()) ||
     project.description ||
     '';
 
-  const contentHtml = renderMarkdown(rawMarkdown);
+  const safeMarkdown = rawMarkdown
+    .replace(
+      /(?:\(|src=")(\/\.github\/assets\/[^)"]+)(?:\)|")/g,
+      (match, path) =>
+        match.replace(path, `https://raw.githubusercontent.com/heysh1n/life-xp-challenge/main${path}`)
+    )
+    .replace(
+      /(?:\(|src=["'])(\.?\/?\.github\/assets\/[^)"']+)(?:\)|["'])/g,
+      (match, path) => {
+        const normalizedPath = path.startsWith('/') ? path : `/${path.replace(/^\.\//, '')}`;
+        return match.replace(
+          path,
+          `https://raw.githubusercontent.com/heysh1n/life-xp-challenge/main${normalizedPath}`
+        );
+      }
+    );
+
+  const contentHtml = renderMarkdown(safeMarkdown);
 
   let tagsList: string[] = [];
   if (Array.isArray(project.tags)) {
     tagsList = project.tags;
   } else if (typeof project.tags === 'string' && project.tags.trim()) {
     tagsList = project.tags.split(',').map((t) => t.trim()).filter(Boolean);
-  } else {
-    tagsList = fallbackTagsMap[project.slug] || [];
   }
 
-  const githubUrl = project.github_url || project.githubLink || null;
+  const githubUrl = project.github_url || null;
   const isSfcp = project.slug === 'sfcp' || project.title.toLowerCase().includes('collector pro');
   const ctaUrl = project.cta_url || (isSfcp ? 'https://t.me/heysh1n' : githubUrl);
   const ctaLabel =
@@ -378,6 +381,9 @@ const projectCards = projects.map((project, index) => {
     tone: index % 2 === 0 ? 'purple' : 'red',
   };
 });
+
+const topProjects = projectCards.slice(0, 3);
+const bottomProjects = projectCards.slice(3);
 
 const stackGroups = (Object.keys(categoryLabels) as TechnologyCategory[]).map((category) => ({
   category,
@@ -461,22 +467,22 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
 };
 ---
 <Layout discordId={discordId}>
-  <main class="w-full max-w-5xl mx-auto p-4 flex flex-col justify-center items-center">
-    <section class="bento-container">
-      <div class="hero_card glassmorphism h-full flex flex-col">
+  <main class="max-w-6xl mx-auto w-full px-4 py-4 flex flex-col justify-center items-center">
+    <section class="bento-container w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.15fr] gap-4 grid-flow-row-dense auto-rows-[minmax(180px,auto)]">
+      <div class="hero_card glassmorphism col-span-1 p-5 h-full flex flex-col justify-between">
         <span class="hero_title">hero.md</span>
         <span class="hero_item">{heroName}</span>
-        <span class="hero_item mb-4">{heroRole}</span>
+        <span class="hero_item mb-3">{heroRole}</span>
         <button 
           type="button" 
-          class="w-full text-center py-2 px-4 rounded-lg bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] hover:border-white/20 transition-colors text-sm text-zinc-200 mt-4 cursor-pointer"
+          class="w-full text-center py-2 px-4 rounded-lg bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] hover:border-white/20 transition-colors text-sm text-zinc-200 mt-auto cursor-pointer"
           data-modal-target="modal-stack"
         >
           [ Open stack.yml ]
         </button>
       </div>
 
-      <div class="env_card glassmorphism">
+      <div class="env_card glassmorphism col-span-1 lg:col-span-2 py-3 px-4 h-full relative overflow-hidden bg-white/[0.04] backdrop-blur">
         <DiscordProfileIsland
           client:load
           discordId={discordId}
@@ -486,7 +492,7 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
         />
       </div>
 
-      <div class="player_card glassmorphism h-full flex flex-col justify-between items-center text-center">
+      <div class="player_card glassmorphism col-span-1 row-span-2 lg:row-span-2 lg:col-start-4 h-full flex flex-col justify-between items-center text-center">
         <div class="player_header w-full">
           <span class="hero_title">player.sh</span>
         </div>
@@ -496,70 +502,98 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
         />
       </div>
 
-      {/* ── Project Cards (clickable → open modal) ── */}
-      {projectCards.map((project) => (
+      {/* ── Top Project Cards (in Bento Grid) ── */}
+      {topProjects.map((project) => (
         <button
           type="button"
-          class="project_card glassmorphism cursor-pointer"
+          class="project_card glassmorphism col-span-1 h-full p-4 flex flex-col justify-between cursor-pointer"
           data-modal-target={project.dialogId}
           aria-label={`Открыть проект ${project.title}`}
         >
-          <div class="project_card_header">
-            <span class="project_title">{project.title}</span>
-            <span class="project_card_indicator" aria-hidden="true" title="Подробнее о проекте">
-              <svg class="indicator_icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </span>
+          <div class="flex flex-col gap-2 w-full">
+            <div class="project_card_header">
+              <span class="project_title text-lg font-semibold text-white">{project.title}</span>
+              <span class="project_card_indicator" aria-hidden="true" title="Подробнее о проекте">
+                <svg class="indicator_icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+            </div>
+            <p class="project_description line-clamp-3">{project.description}</p>
           </div>
-          <p class="project_description line-clamp-3">{project.description}</p>
-          <div class="project_card_footer">
-            {project.tagsList && project.tagsList.length > 0 && (
-              <div class="project_card_tags">
-                {project.tagsList.slice(0, 3).map((tag) => (
-                  <span class="project_card_tag">{tag}</span>
-                ))}
-              </div>
-            )}
-            {project.status && (
+          {project.status && (
+            <div class="project_card_footer">
               <span class="project_status" data-status={project.status}>
                 {statusLabels[project.status]}
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </button>
       ))}
-
-      <hr class="social-divider" />
-
-      {/* ── Social Links from HomePage Global ── */}
-      <div class="socials-container">
-        {socials.map((social) => {
-          const meta = getSocialMeta(social.url, social.platform);
-          return (
-            <a
-              class="social-card glassmorphism"
-              href={meta.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={meta.title}
-            >
-              <img
-                src={meta.iconUrl}
-                alt={meta.platform}
-                class="social-icon"
-                loading="lazy"
-                onerror={`this.onerror=null; this.src='${meta.fallbackFavicon}';`}
-              />
-              <div class="social-info">
-                <span class="social-title">{meta.title}</span>
-                <span class="social-handle">{meta.handle}</span>
-              </div>
-            </a>
-          );
-        })}
-      </div>
     </section>
+
+    {/* ── Dynamic Flex Container for Remaining Projects (auto-stretch to fill row) ── */}
+    {bottomProjects.length > 0 && (
+      <div class="flex flex-col md:flex-row flex-wrap gap-4 w-full mt-4">
+        {bottomProjects.map((project) => (
+          <button
+            type="button"
+            class="project_card glassmorphism flex-1 min-w-[300px] w-full p-4 flex flex-col justify-between cursor-pointer"
+            data-modal-target={project.dialogId}
+            aria-label={`Открыть проект ${project.title}`}
+          >
+            <div class="flex flex-col gap-2 w-full">
+              <div class="project_card_header">
+                <span class="project_title text-lg font-semibold text-white">{project.title}</span>
+                <span class="project_card_indicator" aria-hidden="true" title="Подробнее о проекте">
+                  <svg class="indicator_icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </span>
+              </div>
+              <p class="project_description line-clamp-3">{project.description}</p>
+            </div>
+            {project.status && (
+              <div class="project_card_footer">
+                <span class="project_status" data-status={project.status}>
+                  {statusLabels[project.status]}
+                </span>
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+    )}
+
+    <hr class="social-divider w-full mt-6" />
+
+    {/* ── Social Links from HomePage Global ── */}
+    <div class="socials-container flex flex-wrap gap-4 w-full mt-6">
+      {socials.map((social) => {
+        const meta = getSocialMeta(social.url, social.platform);
+        return (
+          <a
+            class="social-card glassmorphism"
+            href={meta.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={meta.title}
+          >
+            <img
+              src={meta.iconUrl}
+              alt={meta.platform}
+              class="social-icon"
+              loading="lazy"
+              onerror={`this.onerror=null; this.src='${meta.fallbackFavicon}';`}
+            />
+            <div class="social-info">
+              <span class="social-title">{meta.title}</span>
+              <span class="social-handle">{meta.handle}</span>
+            </div>
+          </a>
+        );
+      })}
+    </div>
   </main>
 
   {/* ── Project Modals (Reusable <ProjectModal /> with native <dialog>) ── */}
@@ -604,8 +638,8 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    gap: 0.85rem;
-    padding: clamp(1.1rem, 0.9rem + 1vw, 1.6rem);
+    gap: 0.5rem;
+    padding: 1rem;
     cursor: pointer;
     text-align: left;
     transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
@@ -615,9 +649,10 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
     background: rgba(18, 5, 24, 0.55);
     border-radius: 14px;
     width: 100%;
+    height: 100%;
     color: inherit;
     position: relative;
-    overflow: hidden;
+    overflow: clip;
   }
 
   .project_card:hover {
@@ -630,16 +665,23 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 0.6rem;
+    gap: 0.5rem;
     width: 100%;
+  }
+
+  .project_title {
+    font-size: 1.125rem;
+    line-height: 1.4;
+    font-weight: 600;
+    color: #ffffff;
   }
 
   .project_card_indicator {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.85rem;
-    height: 1.85rem;
+    width: 1.7rem;
+    height: 1.7rem;
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -649,8 +691,8 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
   }
 
   .indicator_icon {
-    width: 1rem;
-    height: 1rem;
+    width: 0.95rem;
+    height: 0.95rem;
   }
 
   .project_card:hover .project_card_indicator {
@@ -662,13 +704,13 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
 
   .project_description {
     color: #a1a1aa;
-    font-size: clamp(0.85rem, 0.78rem + 0.25vw, 0.95rem);
-    line-height: 1.5;
+    font-size: clamp(0.82rem, 0.78rem + 0.2vw, 0.9rem);
+    line-height: 1.45;
     display: -webkit-box;
     -webkit-line-clamp: 3;
     line-clamp: 3;
     -webkit-box-orient: vertical;
-    overflow: hidden;
+    overflow: clip;
     text-overflow: ellipsis;
     overflow-wrap: break-word;
   }
@@ -678,21 +720,22 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: 0.4rem;
     margin-top: auto;
-    padding-top: 0.4rem;
+    padding-top: 0.25rem;
   }
 
   .project_card_tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    flex-wrap: balance;
+    gap: 0.3rem;
   }
 
   .project_card_tag {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 500;
-    padding: 0.18rem 0.5rem;
+    padding: 0.15rem 0.45rem;
     border-radius: 4px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);

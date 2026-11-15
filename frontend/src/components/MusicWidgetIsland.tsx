@@ -280,18 +280,7 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
 
   return (
     <div
-      className="player_card_inner"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        textAlign: 'center',
-        height: '100%',
-        width: '100%',
-        flex: 1,
-        position: 'relative',
-      }}
+      className="player_card_inner h-full w-full flex-1 flex flex-col justify-between items-center text-center relative"
     >
       {/* ── Top Zone: Album cover artwork, track title, and artist name ── */}
       <div className="player_zone_top">
