@@ -47,6 +47,15 @@ const mainCards: DashboardCard[] = [
 
 const securityCards: DashboardCard[] = [
   {
+    href: '/panel/collections/releases',
+    label: 'SFCP Releases & Updates',
+    tag: 'Auto-Updates',
+    tagColor: '#06b6d4',
+    description:
+      'Upload sfc-pro binaries (Linux, Windows, macOS) and sfcp-vscode .vsix builds with automatic SHA-256 and dynamic JSON manifests.',
+    icon: '📦',
+  },
+  {
     href: '/panel/collections/access-keys',
     label: 'SFCP License Keys',
     tag: 'Security & Licensing',
@@ -478,7 +487,7 @@ export const AdminDashboard = () => (
         </div>
         <div>
           <span style={{ color: '#64748b', display: 'block', fontSize: '11px', textTransform: 'uppercase' }}>Endpoints</span>
-          <span style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600 }}>/api/validate-license | /api/spotify/now-playing</span>
+          <span style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: 600 }}>/api/sfcp/update.json | /api/sfcp/vscode-update.json | /api/v1/validate</span>
         </div>
         <div>
           <span style={{ color: '#64748b', display: 'block', fontSize: '11px', textTransform: 'uppercase' }}>Frontend Hub</span>

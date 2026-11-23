@@ -73,6 +73,7 @@ export interface Config {
     technologies: Technology;
     'access-keys': AccessKey;
     'key-logs': KeyLog;
+    releases: Release;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -86,6 +87,7 @@ export interface Config {
     technologies: TechnologiesSelect<false> | TechnologiesSelect<true>;
     'access-keys': AccessKeysSelect<false> | AccessKeysSelect<true>;
     'key-logs': KeyLogsSelect<false> | KeyLogsSelect<true>;
+    releases: ReleasesSelect<false> | ReleasesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -292,6 +294,80 @@ export interface KeyLog {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "releases".
+ */
+export interface Release {
+  id: number;
+  /**
+   * Auto-generated identifier (product, version, target).
+   */
+  releaseLabel?: string | null;
+  /**
+   * Target product manifest (sfc-pro -> update.json, sfcp-vscode -> vscode-update.json).
+   */
+  product: 'sfc-pro' | 'sfcp-vscode';
+  /**
+   * Semantic version string, e.g. 1.2.0 (leading "v" is stripped automatically).
+   */
+  version: string;
+  /**
+   * OS/architecture target for sfc-pro (e.g. linux-x86_64, windows-x86_64) or "vscode" for sfcp-vscode.
+   */
+  target:
+    | 'linux-x86_64'
+    | 'linux-aarch64'
+    | 'windows-x86_64'
+    | 'windows-aarch64'
+    | 'macos-arm64'
+    | 'macos-x86_64'
+    | 'darwin-arm64'
+    | 'darwin-x86_64'
+    | 'vscode'
+    | 'custom';
+  /**
+   * Custom platform key used in the manifest (e.g. linux-arm64, freebsd-x86_64).
+   */
+  customTarget?: string | null;
+  /**
+   * Optional external download link. Leave blank when uploading the release file directly above — the download link is generated automatically.
+   */
+  downloadUrl?: string | null;
+  /**
+   * Automatically calculated when uploading a file if left empty. Can also be supplied manually for external links.
+   */
+  sha256?: string | null;
+  /**
+   * Optional changelog or release notes included in the manifest.
+   */
+  notes?: string | null;
+  /**
+   * Release channel served by update endpoints (default: stable).
+   */
+  channel: 'stable' | 'beta' | 'nightly';
+  /**
+   * Only published releases are included in manifests and available for public download.
+   */
+  status: 'published' | 'draft' | 'archived';
+  /**
+   * Optional manual override (e.g. for rollbacks). By default, the highest published SemVer version is served automatically.
+   */
+  isCurrent?: boolean | null;
+  /**
+   * Auto-populated when a release is published.
+   */
+  publishedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -337,6 +413,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'key-logs';
         value: number | KeyLog;
+      } | null)
+    | ({
+        relationTo: 'releases';
+        value: number | Release;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -473,6 +553,33 @@ export interface KeyLogsSelect<T extends boolean = true> {
   ipAddress?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "releases_select".
+ */
+export interface ReleasesSelect<T extends boolean = true> {
+  releaseLabel?: T;
+  product?: T;
+  version?: T;
+  target?: T;
+  customTarget?: T;
+  downloadUrl?: T;
+  sha256?: T;
+  notes?: T;
+  channel?: T;
+  status?: T;
+  isCurrent?: T;
+  publishedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

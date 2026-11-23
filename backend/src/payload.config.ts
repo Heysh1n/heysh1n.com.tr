@@ -10,12 +10,16 @@ import { KeyLogs } from './collections/KeyLogs'
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Projects } from './collections/Projects'
+import { Releases } from './collections/Releases'
 import { Technologies } from './collections/Technologies'
 import {
   generateLicenseEndpoint,
+  releaseDownloadEndpoint,
+  releaseDownloadHeadEndpoint,
   sfcpVerifyEndpoint,
   updateManifestEndpoint,
   validateLicenseEndpoint,
+  vscodeUpdateManifestEndpoint,
 } from './endpoints/sfcp'
 import {
   spotifyCallbackEndpoint,
@@ -96,13 +100,16 @@ export default buildConfig({
   routes: {
     admin: '/panel',
   },
-  collections: [Users, Media, Projects, Technologies, AccessKeys, KeyLogs],
+  collections: [Users, Media, Projects, Technologies, AccessKeys, KeyLogs, Releases],
   globals: [HomePage],
   endpoints: [
     validateLicenseEndpoint,
     sfcpVerifyEndpoint,
     generateLicenseEndpoint,
     updateManifestEndpoint,
+    vscodeUpdateManifestEndpoint,
+    releaseDownloadEndpoint,
+    releaseDownloadHeadEndpoint,
     spotifyNowPlayingEndpoint,
     spotifyLoginEndpoint,
     spotifyCallbackEndpoint,

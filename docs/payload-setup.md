@@ -53,12 +53,27 @@ DATABASE_URI=postgresql://postgres:postgres@127.0.0.1:5432/payload_cms
 PAYLOAD_SECRET=replace-with-a-long-random-secret
 ```
 
-Optional SFCP update manifest values:
+Optional SFCP release storage, fallback manifest, and rate-limit values:
 
 ```env
+# Optional custom directory for uploaded release binaries (defaults to backend/releases)
+SFCP_RELEASES_DIR=
+
+# Fallback values used only before the first release is uploaded to the Releases collection
 SFCP_LATEST_VERSION=0.0.0
 SFCP_DOWNLOAD_URL=
 SFCP_SHA256=
+SFCP_VSCODE_LATEST_VERSION=0.0.0
+SFCP_VSCODE_DOWNLOAD_URL=
+SFCP_VSCODE_SHA256=
+
+# Optional rate limit overrides (requests per window in ms)
+SFCP_MANIFEST_RATE_LIMIT_MAX=60
+SFCP_MANIFEST_RATE_LIMIT_WINDOW_MS=60000
+SFCP_DOWNLOAD_RATE_LIMIT_MAX=30
+SFCP_DOWNLOAD_RATE_LIMIT_WINDOW_MS=60000
+SFCP_AUTH_RATE_LIMIT_MAX=30
+SFCP_AUTH_RATE_LIMIT_WINDOW_MS=60000
 ```
 
 ## Migrations And Development

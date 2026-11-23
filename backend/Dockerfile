@@ -33,6 +33,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/backend ./backend
 COPY --from=builder /app/frontend/package.json ./frontend/package.json
+RUN mkdir -p /app/backend/releases /app/backend/media && chown -R nextjs:nodejs /app/backend/releases /app/backend/media
 
 USER nextjs
 

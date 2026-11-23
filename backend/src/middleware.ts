@@ -25,6 +25,25 @@ const applySecurityHeaders = (response: NextResponse): NextResponse => {
   return response
 }
 
+const createForbiddenResponse = (request: NextRequest): NextResponse => {
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return applySecurityHeaders(
+      NextResponse.json(
+        { error: 'Direct access forbidden' },
+        {
+          status: 403,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store, max-age=0',
+          },
+        },
+      ),
+    )
+  }
+
+  return applySecurityHeaders(new NextResponse('Direct access forbidden', { status: 403 }))
+}
+
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host')
 
@@ -42,16 +61,17 @@ export function middleware(request: NextRequest) {
         const expectedHost = new URL(rawBackendUrl).host.toLowerCase()
 
         if (host.toLowerCase() !== expectedHost && hostname !== expectedHost.split(':')[0]) {
-          return applySecurityHeaders(new NextResponse('Direct access forbidden', { status: 403 }))
+          return createForbiddenResponse(request)
         }
-      } catch (error) {
-        console.error('Failed to parse backend URL in middleware:', error)
+      } catch {
+        // Avoid logging raw URL values or internals in middleware logs
+        console.error('[middleware] Failed to parse configured backend URL')
       }
     } else {
       const isIp = /^[\d.]+$/.test(hostname) || hostname.includes('[')
 
       if (hostname.endsWith('.onrender.com') || isIp) {
-        return applySecurityHeaders(new NextResponse('Direct access forbidden', { status: 403 }))
+        return createForbiddenResponse(request)
       }
     }
   }

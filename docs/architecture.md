@@ -26,8 +26,8 @@ Responsibilities:
 
 - Payload admin panel.
 - Portfolio collections: `Projects`, `Technologies`.
-- Private SFCP metadata: `AccessKeys`.
-- REST endpoints for SFCP license validation, key generation, and update manifests.
+- Private SFCP metadata: `AccessKeys`, `KeyLogs`, `Releases`.
+- REST endpoints for SFCP license validation, key generation, dynamic update manifests, and release artifact downloads.
 
 Local URL:
 
@@ -39,15 +39,23 @@ http://localhost:3000
 
 ```text
 POST /api/v1/validate
+POST /api/sfcp/verify
 POST /api/v1/licenses/generate
 GET  /api/sfcp/update.json
+GET  /api/sfcp/vscode-update.json
+GET  /api/sfcp/downloads/:filename
+HEAD /api/sfcp/downloads/:filename
 ```
 
-`POST /api/v1/validate` is called by the SFCP binary. It accepts a license key and HWID, binds the key on first successful validation, rejects mismatched HWIDs, and returns a signed token.
+`POST /api/v1/validate` is called by the SFCP binary. It accepts a license key hash and HWID, binds the key on first successful validation, rejects mismatched HWIDs, and logs telemetry.
 
 `POST /api/v1/licenses/generate` is an authenticated admin endpoint for creating new access keys.
 
-`GET /api/sfcp/update.json` serves the updater manifest consumed by SFCP.
+`GET /api/sfcp/update.json` dynamically builds the multi-platform updater manifest for `sfc-pro` from published records in the `Releases` collection (`version` / `latest_version`, `platforms` map by OS/architecture such as `linux-x86_64`, `windows-x86_64`, `macos-arm64`, plus top-level fallback `download_url` and `sha256`).
+
+`GET /api/sfcp/vscode-update.json` dynamically builds the updater manifest for `sfcp-vscode` pointing to the latest published `.vsix` package and its `sha256`.
+
+`GET /api/sfcp/downloads/:filename` (and `HEAD`) streams published release binaries/packages directly from server storage with rate limiting, strict path-traversal guards, and safe attachment headers.
 
 ## Data Flow
 

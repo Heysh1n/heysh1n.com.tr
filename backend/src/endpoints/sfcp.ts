@@ -2,6 +2,21 @@ import { createHash, randomBytes, timingSafeEqual } from 'crypto'
 import type { Endpoint } from 'payload'
 
 import type { AccessKey } from '../payload-types'
+import {
+  checkRateLimit,
+  createRateLimitExceededResponse,
+  createRateLimitHeaders,
+  extractClientIp,
+  parsePositiveIntEnv,
+} from '../utils/rateLimit'
+import { sanitizeErrorForLog } from '../utils/releaseStorage'
+
+export {
+  releaseDownloadEndpoint,
+  releaseDownloadHeadEndpoint,
+  updateManifestEndpoint,
+  vscodeUpdateManifestEndpoint,
+} from './releases'
 
 type ValidateRequestBody = {
   hash?: unknown
@@ -104,30 +119,45 @@ const createLicenseKey = () => {
   return `SFCP-${chunks.join('-')}`
 }
 
-const extractClientIp = (req: { headers?: Headers }): string => {
-  const forwarded = req.headers?.get?.('x-forwarded-for')
+const checkAuthRateLimit = (req: { headers?: Headers }, bucket: string) =>
+  checkRateLimit({
+    bucket,
+    key: extractClientIp(req),
+    limit: parsePositiveIntEnv(process.env.SFCP_AUTH_RATE_LIMIT_MAX, 30),
+    windowMs: parsePositiveIntEnv(process.env.SFCP_AUTH_RATE_LIMIT_WINDOW_MS, 60_000),
+  })
 
-  if (forwarded) {
-    const first = forwarded.split(',')[0]?.trim()
-
-    if (first && first.length > 0) {
-      return first
-    }
+const mergeHeaders = (
+  rateHeaders: Record<string, string>,
+  extra?: HeadersInit,
+): Headers => {
+  const headers = new Headers(extra)
+  for (const [k, v] of Object.entries(rateHeaders)) {
+    headers.set(k, v)
   }
-
-  return 'unknown'
+  headers.set('Content-Type', 'application/json; charset=utf-8')
+  headers.set('Cache-Control', 'no-store, max-age=0')
+  headers.set('X-Content-Type-Options', 'nosniff')
+  return headers
 }
 
 export const validateLicenseEndpoint: Endpoint = {
   method: 'post',
   path: '/v1/validate',
   handler: async (req) => {
+    const rateLimit = checkAuthRateLimit(req, 'sfcp-v1-validate')
+    if (!rateLimit.allowed) {
+      return createRateLimitExceededResponse(rateLimit)
+    }
+
+    const headers = mergeHeaders(createRateLimitHeaders(rateLimit))
+
     // ── Agent guard ──────────────────────────────────────────────────────
     if (req.headers && typeof req.headers.get === 'function') {
       const agent = req.headers.get('x-sfcp-agent')
 
       if (agent !== EXPECTED_AGENT) {
-        return json({ status: 'error', message: 'Forbidden' }, { status: 403 })
+        return json({ status: 'error', message: 'Forbidden' }, { status: 403, headers })
       }
     }
 
@@ -142,7 +172,7 @@ export const validateLicenseEndpoint: Endpoint = {
           status: 'error',
           message: 'Missing HWID or hash.',
         },
-        { status: 400 },
+        { status: 400, headers },
       )
     }
 
@@ -162,20 +192,20 @@ export const validateLicenseEndpoint: Endpoint = {
     })
 
     if (!license || license.status === 'revoked') {
-      return json({ status: 'error', message: 'Invalid credentials' }, { status: 403 })
+      return json({ status: 'error', message: 'Invalid credentials' }, { status: 403, headers })
     }
 
     if (license.expiresAt) {
       const expiresAtTime = new Date(license.expiresAt).getTime()
       if (!Number.isNaN(expiresAtTime) && expiresAtTime < Date.now()) {
-        return json({ status: 'error', message: 'License expired' }, { status: 403 })
+        return json({ status: 'error', message: 'License expired' }, { status: 403, headers })
       }
     }
 
     if (license.hwid && license.hwid !== hwid) {
       return json(
         { status: 'error', message: 'HWID mismatch. License linked to another device' },
-        { status: 403 },
+        { status: 403, headers },
       )
     }
 
@@ -209,13 +239,13 @@ export const validateLicenseEndpoint: Endpoint = {
         })
       } catch (error: unknown) {
         req.payload.logger?.error?.(
-          { err: error },
-          `[sfcp] Failed to write key-log for license ${String(license.id)}`,
+          { error: sanitizeErrorForLog(error), licenseId: license.id },
+          '[sfcp] Failed to write key-log',
         )
       }
     }
 
-    return json({ status: 'ok' })
+    return json({ status: 'ok' }, { headers })
   },
 }
 
@@ -223,12 +253,19 @@ export const sfcpVerifyEndpoint: Endpoint = {
   method: 'post',
   path: '/sfcp/verify',
   handler: async (req) => {
+    const rateLimit = checkAuthRateLimit(req, 'sfcp-verify')
+    if (!rateLimit.allowed) {
+      return createRateLimitExceededResponse(rateLimit)
+    }
+
+    const headers = mergeHeaders(createRateLimitHeaders(rateLimit))
+
     const body = await readJsonBody<VerifyLicenseRequestBody>(req)
     const key = isNonEmptyString(body.key) ? body.key.trim() : ''
     const hwid = isNonEmptyString(body.hwid) ? body.hwid.trim() : ''
 
     if (!key || !hwid) {
-      return json({ valid: false, error: 'Unauthorized' }, { status: 401 })
+      return json({ valid: false, error: 'Unauthorized' }, { status: 401, headers })
     }
 
     const result = await req.payload.find({
@@ -246,7 +283,7 @@ export const sfcpVerifyEndpoint: Endpoint = {
     const license = (result.docs as AccessKey[])[0]
 
     if (!license || license.status !== 'active') {
-      return json({ valid: false, error: 'Unauthorized' }, { status: 401 })
+      return json({ valid: false, error: 'Unauthorized' }, { status: 401, headers })
     }
 
     if (license.expiresAt) {
@@ -266,7 +303,7 @@ export const sfcpVerifyEndpoint: Endpoint = {
           // Ignore update error
         }
 
-        return json({ valid: false, error: 'License expired' }, { status: 401 })
+        return json({ valid: false, error: 'License expired' }, { status: 401, headers })
       }
     }
 
@@ -283,11 +320,11 @@ export const sfcpVerifyEndpoint: Endpoint = {
         overrideAccess: true,
       })
 
-      return json({ valid: true }, { status: 200 })
+      return json({ valid: true }, { status: 200, headers })
     }
 
     if (existingHwid !== hwid) {
-      return json({ valid: false, error: 'HWID mismatch' }, { status: 403 })
+      return json({ valid: false, error: 'HWID mismatch' }, { status: 403, headers })
     }
 
     await req.payload.update({
@@ -299,7 +336,7 @@ export const sfcpVerifyEndpoint: Endpoint = {
       overrideAccess: true,
     })
 
-    return json({ valid: true }, { status: 200 })
+    return json({ valid: true }, { status: 200, headers })
   },
 }
 
@@ -333,24 +370,4 @@ export const generateLicenseEndpoint: Endpoint = {
       license,
     })
   },
-}
-
-export const updateManifestEndpoint: Endpoint = {
-  method: 'get',
-  path: '/sfcp/update.json',
-  handler: () =>
-    json(
-      {
-        product: 'sfcp',
-        version: process.env.SFCP_LATEST_VERSION || '0.0.0',
-        channel: 'stable',
-        downloadUrl: process.env.SFCP_DOWNLOAD_URL || null,
-        sha256: process.env.SFCP_SHA256 || null,
-      },
-      {
-        headers: {
-          'Cache-Control': 'no-store',
-        },
-      },
-    ),
 }

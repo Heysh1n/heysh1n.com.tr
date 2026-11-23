@@ -1,7 +1,12 @@
 import { createHash } from 'crypto'
 
 import { sfcpVerifyEndpoint, validateLicenseEndpoint } from '@/endpoints/sfcp'
-import { describe, expect, it, vi } from 'vitest'
+import { resetRateLimitStore } from '@/utils/rateLimit'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+beforeEach(() => {
+  resetRateLimitStore()
+})
 
 type AccessKeyStub = {
   hwid?: null | string

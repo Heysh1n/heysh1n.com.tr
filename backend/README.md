@@ -2,7 +2,7 @@
 
 Payload CMS v3 backend for the portfolio content model and SFCP commercial API.
 
-## Stack
+## Stack*
 
 - Payload CMS v3
 - Next.js App Router

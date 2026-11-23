@@ -1,4 +1,5 @@
 export { AccessKeys } from './AccessKeys'
 export { KeyLogs } from './KeyLogs'
 export { Projects } from './Projects'
+export { Releases } from './Releases'
 export { Technologies } from './Technologies'

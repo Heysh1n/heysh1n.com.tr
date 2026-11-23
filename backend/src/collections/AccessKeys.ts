@@ -1,4 +1,4 @@
-import type { CollectionBeforeChangeHook, CollectionConfig } from 'payload'
+import type { CollectionBeforeChangeHook, CollectionConfig, Endpoint, PayloadRequest } from 'payload'
 
 import type { ProjectDocument } from './Projects'
 import { isAdminOrOwner, isOwner } from './Users'
@@ -58,8 +58,126 @@ const autoGenerateLicenseKey: CollectionBeforeChangeHook = ({ data, operation })
   return data
 }
 
+export const resetHwidEndpoint: Endpoint = {
+  path: '/reset-hwid',
+  method: 'post',
+  handler: async (req: PayloadRequest): Promise<Response> => {
+    // Check user authentication and admin permissions
+    const user = req.user as { role?: unknown; roles?: unknown } | null | undefined
+
+    if (!user) {
+      return Response.json({ success: false, message: 'Unauthorized' }, { status: 403 })
+    }
+
+    const userRoles = Array.isArray(user.roles)
+      ? user.roles
+      : typeof user.role === 'string'
+        ? [user.role]
+        : []
+
+    const hasAdminRole = userRoles.includes('admin') || userRoles.includes('owner')
+    const isAuthorized =
+      hasAdminRole ||
+      (typeof isAdminOrOwner === 'function' ? await isAdminOrOwner({ req } as never) : false)
+
+    if (!isAuthorized) {
+      return Response.json({ success: false, message: 'Unauthorized' }, { status: 403 })
+    }
+
+    // Extract key from body
+    let body: Record<string, unknown> | null = null
+
+    if (req.data && typeof req.data === 'object') {
+      body = req.data as Record<string, unknown>
+    } else if (typeof req.json === 'function') {
+      try {
+        body = (await req.json()) as Record<string, unknown>
+      } catch {
+        body = null
+      }
+    }
+
+    if (!body && req.body && typeof req.body === 'object' && !('getReader' in req.body)) {
+      body = req.body as Record<string, unknown>
+    }
+
+    const key = body?.key
+
+    if (!key || typeof key !== 'string') {
+      return Response.json({ success: false, message: 'Key is required' }, { status: 400 })
+    }
+
+    // Update via Local API wrapped in try/catch
+    try {
+      let result = await req.payload.update({
+        collection: 'access-keys',
+        where: {
+          key: {
+            equals: key,
+          },
+        },
+        data: {
+          hwid: null,
+        },
+      })
+
+      // Fallback for license_key schema if no documents updated
+      if (!result?.docs || result.docs.length === 0) {
+        try {
+          const fallbackResult = await req.payload.update({
+            collection: 'access-keys',
+            where: {
+              license_key: {
+                equals: key,
+              },
+            },
+            data: {
+              hwid: null,
+            },
+          })
+          if (fallbackResult?.docs && fallbackResult.docs.length > 0) {
+            result = fallbackResult
+          }
+        } catch {
+          // Ignore fallback error
+        }
+      }
+
+      if (!result?.docs || result.docs.length === 0) {
+        return Response.json({ success: false, message: 'Key not found' }, { status: 404 })
+      }
+
+      return Response.json({ success: true, message: 'HWID reset successfully' }, { status: 200 })
+    } catch {
+      // In case primary query threw because 'key' column doesn't exist, try 'license_key'
+      try {
+        const fallbackResult = await req.payload.update({
+          collection: 'access-keys',
+          where: {
+            license_key: {
+              equals: key,
+            },
+          },
+          data: {
+            hwid: null,
+          },
+        })
+
+        if (!fallbackResult?.docs || fallbackResult.docs.length === 0) {
+          return Response.json({ success: false, message: 'Key not found' }, { status: 404 })
+        }
+
+        return Response.json({ success: true, message: 'HWID reset successfully' }, { status: 200 })
+      } catch {
+        return Response.json({ success: false, message: 'Database error' }, { status: 500 })
+      }
+    }
+  },
+}
+
 export const AccessKeys: CollectionConfig = {
   slug: 'access-keys',
+  endpoints: [resetHwidEndpoint],
   access: {
     read: isAdminOrOwner,
     create: isOwner,
