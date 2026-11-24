@@ -51,6 +51,19 @@ function getDirectExternalFallbackUrl(raw?: string | null): string | null {
   return null;
 }
 
+function normalizeHexColor(value?: string | number | null): string | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 0xffffff) {
+    return `#${Math.floor(value).toString(16).padStart(6, '0')}`;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  return null;
+}
+
 const STATUS_TEXT: Record<DiscordStatus, string> = {
   online: 'ONLINE',
   idle: 'IDLE',
@@ -78,6 +91,7 @@ export default function DiscordProfileIsland({
     banner?: string | null;
     accent_color?: number | null;
     banner_color?: string | null;
+    theme_colors?: number[] | null;
   } | null>(null);
   const [elapsedTime, setElapsedTime] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -122,7 +136,10 @@ export default function DiscordProfileIsland({
           setProfileMeta({
             banner: userObj.banner ?? json?.user_profile?.banner ?? null,
             accent_color: userObj.accent_color ?? json?.user_profile?.accent_color ?? null,
-            banner_color: userObj.banner_color ?? null,
+            banner_color: userObj.banner_color ?? json?.user_profile?.banner_color ?? null,
+            theme_colors: Array.isArray(json?.user_profile?.theme_colors)
+              ? json.user_profile.theme_colors
+              : null,
           });
         }
       } catch {
@@ -270,12 +287,15 @@ export default function DiscordProfileIsland({
   const userId = discordUser?.id || discordId;
   const resolvedBanner = discordUser?.banner || profileMeta?.banner;
   const resolvedAccentColor = discordUser?.accent_color ?? profileMeta?.accent_color;
+  const resolvedThemeColor = profileMeta?.theme_colors?.find(
+    (color) => typeof color === 'number' && color > 0,
+  );
 
   const bannerUrl =
     userId && resolvedBanner
       ? `https://cdn.discordapp.com/banners/${userId}/${resolvedBanner}.${
           resolvedBanner.startsWith('a_') ? 'gif' : 'png'
-        }?size=512`
+        }?size=600`
       : null;
 
   useEffect(() => {
@@ -283,11 +303,13 @@ export default function DiscordProfileIsland({
   }, [bannerUrl]);
 
   const accentColorHex =
-    !bannerUrl && typeof resolvedAccentColor === 'number'
-      ? `#${resolvedAccentColor.toString(16).padStart(6, '0')}`
-      : !bannerUrl && profileMeta?.banner_color
-        ? profileMeta.banner_color
-        : null;
+    normalizeHexColor(discordUser?.banner_color) ||
+    normalizeHexColor(profileMeta?.banner_color) ||
+    normalizeHexColor(resolvedAccentColor) ||
+    normalizeHexColor(resolvedThemeColor);
+
+  const hasBannerImage = Boolean(bannerUrl && !bannerHidden);
+  const hasAccentTint = !hasBannerImage && Boolean(accentColorHex);
 
   const clan = discordUser?.primary_guild || discordUser?.clan;
   const clanTag = clan?.identity_enabled !== false && clan?.tag ? clan.tag : fallbackTag;
@@ -356,13 +378,18 @@ export default function DiscordProfileIsland({
 
   const statusLabel = STATUS_TEXT[status];
   const activityVerb = gameActivity ? (ACTIVITY_VERB[gameActivity.type] ?? 'Playing') : null;
-  const accentStyle = accentColorHex
+  const cardStyle = accentColorHex
     ? ({ '--discord-accent': accentColorHex } as React.CSSProperties)
     : undefined;
 
   return (
-    <article className="module module-discord">
-      {bannerUrl && !bannerHidden ? (
+    <article
+      className="module module-discord"
+      data-has-banner={hasBannerImage ? 'true' : 'false'}
+      data-has-accent={hasAccentTint ? 'true' : 'false'}
+      style={cardStyle}
+    >
+      {hasBannerImage && bannerUrl ? (
         <img
           src={bannerUrl}
           alt=""
@@ -371,10 +398,12 @@ export default function DiscordProfileIsland({
           loading="lazy"
           onError={() => setBannerHidden(true)}
         />
-      ) : accentColorHex ? (
-        <div aria-hidden="true" className="discord-banner-tint" style={accentStyle} />
+      ) : hasAccentTint ? (
+        <div aria-hidden="true" className="discord-banner-tint" />
       ) : null}
-      <div className="discord-banner-scrim" aria-hidden="true" />
+      {(hasBannerImage || hasAccentTint) && (
+        <div className="discord-banner-scrim" aria-hidden="true" />
+      )}
 
       <div className="discord-widget">
         <header className="module-head">

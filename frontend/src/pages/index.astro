@@ -366,6 +366,8 @@ const stackGroups = (Object.keys(categoryLabels) as TechnologyCategory[])
 const enabledSocials = homePage?.socials?.filter((s) => s.enabled !== false);
 const socials = enabledSocials && enabledSocials.length > 0 ? enabledSocials : fallbackSocials;
 const socialsCountLabel = String(socials.length).padStart(2, '0');
+const socialsCols =
+  socials.length <= 1 ? '1' : socials.length === 2 || socials.length === 4 ? '2' : '3';
 
 const discordId = textOrFallback(homePage?.discord_id, fallbackHomePage.discord_id ?? '995737379417640961');
 const discordUsername = textOrFallback(homePage?.discord_username, fallbackHomePage.discord_username ?? 'heysh1n');
@@ -469,7 +471,7 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
         <span class="section-count">{socialsCountLabel}</span>
       </div>
 
-      <nav class="socials-grid" aria-label="Ссылки">
+      <nav class="socials-grid" data-cols={socialsCols} aria-label="Ссылки">
         {socials.map((social) => {
           const meta = getSocialMeta(social.url, social.platform);
           return (
