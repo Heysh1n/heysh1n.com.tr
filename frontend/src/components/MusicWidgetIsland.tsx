@@ -299,7 +299,7 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
   const progressStyle = { '--progress': `${progressPercent}%` } as React.CSSProperties;
 
   return (
-    <article className="module module-player">
+    <article className="module module-player" data-live={isLive ? 'true' : 'false'}>
       <div className="player-widget">
         <header className="module-head">
           <span className="module-label">player.sh</span>
@@ -317,7 +317,7 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
           </span>
         </header>
 
-        <div className="module-body">
+        <div className="module-body player-body">
           <div className="player-track">
             <a
               href={trackData.url || '#'}
@@ -338,8 +338,14 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
                 src={resolvedCover}
                 alt={trackData.name}
                 className="player-cover-img"
+                decoding="async"
                 onError={() => setCoverFailed(true)}
               />
+              {trackData.url && (
+                <span className="player-cover-badge" aria-hidden="true">
+                  ↗
+                </span>
+              )}
             </a>
 
             <div className="player-meta">
@@ -361,7 +367,7 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
               <span className="player-artist" title={trackData.artist}>
                 {trackData.artist}
               </span>
-              <span className="player-hint">
+              <span className="player-hint" data-preview={hasPreview ? 'true' : 'false'}>
                 {hasPreview ? '30s preview available' : 'live metadata'}
               </span>
             </div>
@@ -369,11 +375,15 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
 
           <div className="player-progress">
             <div className="player-progress-track">
-              <div className="player-progress-fill" style={progressStyle} />
+              <div
+                className="player-progress-fill"
+                data-active={progressPercent > 0 ? 'true' : 'false'}
+                style={progressStyle}
+              />
             </div>
             <div className="player-progress-times">
-              <span>{formatTime(trackData.progressMs)}</span>
-              <span>{formatTime(trackData.durationMs)}</span>
+              <span className="player-time-current">{formatTime(trackData.progressMs)}</span>
+              <span className="player-time-total">{formatTime(trackData.durationMs)}</span>
             </div>
           </div>
         </div>
@@ -454,14 +464,32 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
             </button>
           </div>
 
-          <span className="player-source">
-            <span
-              className="player-source-dot"
-              data-live={trackData.isPlaying ? 'true' : 'false'}
-              aria-hidden="true"
-            />
-            <span>SPOTIFY</span>
-          </span>
+          {trackData.url ? (
+            <a
+              href={trackData.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="player-source player-source-link"
+              title={`Open "${trackData.name}" on Spotify`}
+            >
+              <span
+                className="player-source-dot"
+                data-live={trackData.isPlaying ? 'true' : 'false'}
+                aria-hidden="true"
+              />
+              <span>SPOTIFY</span>
+              <span className="player-source-arrow" aria-hidden="true">↗</span>
+            </a>
+          ) : (
+            <span className="player-source">
+              <span
+                className="player-source-dot"
+                data-live={trackData.isPlaying ? 'true' : 'false'}
+                aria-hidden="true"
+              />
+              <span>SPOTIFY</span>
+            </span>
+          )}
         </footer>
       </div>
     </article>

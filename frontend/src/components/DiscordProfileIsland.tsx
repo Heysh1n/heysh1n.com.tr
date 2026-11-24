@@ -275,7 +275,7 @@ export default function DiscordProfileIsland({
   const computedAvatarUrl = discordUser?.avatar
     ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.${
         discordUser.avatar.startsWith('a_') ? 'gif' : 'png'
-      }?size=160`
+      }?size=256`
     : fallbackAvatar;
 
   useEffect(() => {
@@ -295,7 +295,7 @@ export default function DiscordProfileIsland({
     userId && resolvedBanner
       ? `https://cdn.discordapp.com/banners/${userId}/${resolvedBanner}.${
           resolvedBanner.startsWith('a_') ? 'gif' : 'png'
-        }?size=600`
+        }?size=512`
       : null;
 
   useEffect(() => {
@@ -395,19 +395,19 @@ export default function DiscordProfileIsland({
           alt=""
           aria-hidden="true"
           className="discord-banner-img"
-          loading="lazy"
+          decoding="async"
           onError={() => setBannerHidden(true)}
         />
       ) : hasAccentTint ? (
-        <div aria-hidden="true" className="discord-banner-tint" />
+        <>
+          <div aria-hidden="true" className="discord-banner-tint" />
+          <div className="discord-banner-scrim" aria-hidden="true" />
+        </>
       ) : null}
-      {(hasBannerImage || hasAccentTint) && (
-        <div className="discord-banner-scrim" aria-hidden="true" />
-      )}
 
       <div className="discord-widget">
         <header className="module-head">
-          <span className="module-label">discord.rpc</span>
+          <span className="module-label">discord.status</span>
           <span className="discord-head-status" data-status={status}>
             <span className="status-dot" data-status={status} aria-hidden="true" />
             <span>{statusLabel}</span>
@@ -421,7 +421,7 @@ export default function DiscordProfileIsland({
                 src={avatarUrl}
                 alt={discordUser?.global_name || displayName}
                 className="discord-avatar-img"
-                loading="lazy"
+                decoding="async"
                 onError={() => setAvatarFallback(true)}
               />
               <span className="discord-avatar-status" data-status={status} title={statusLabel} />
