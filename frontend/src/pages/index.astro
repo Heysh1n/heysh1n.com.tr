@@ -1,13 +1,11 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import HeroBlock from '../components/HeroBlock.astro';
+import ProjectsGrid from '../components/ProjectsGrid.astro';
 import MusicWidgetIsland from '../components/MusicWidgetIsland';
 import DiscordProfileIsland from '../components/DiscordProfileIsland';
 import ProjectModal from '../components/ProjectModal.astro';
 import { renderMarkdown } from '../utils/markdown';
-
-type PayloadListResponse<T> = {
-  docs?: T[];
-};
 
 type HomePageSocial = {
   id?: string;
@@ -219,12 +217,10 @@ const fetchPayloadGlobal = async <T,>(url: string): Promise<T | null> => {
     }
 
     const payload = (await response.json()) as any;
-
     if (!payload || typeof payload !== 'object') {
       throw new Error('Payload returned an invalid global object');
     }
 
-    // Handle payload globals returned directly or wrapped in { data: ... }
     const data =
       payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
         ? payload.data
@@ -314,40 +310,24 @@ const technologies = fetchedTechnologies.length > 0 ? fetchedTechnologies : fall
 
 const projectCards = projects.map((project, index) => {
   const fallbackProject = fallbackProjects.find(
-    (fp) => fp.slug === project.slug || fp.title.toLowerCase() === project.title.toLowerCase()
+    (fp) => fp.slug === project.slug || fp.title.toLowerCase() === project.title.toLowerCase(),
   );
 
-  // Parse project.markdown_description (fallback to fallbackProjects rich markdown, or description)
   const rawMarkdown =
     (typeof project.markdown_description === 'string' && project.markdown_description.trim()) ||
     (fallbackProject?.markdown_description && fallbackProject.markdown_description.trim()) ||
     project.description ||
     '';
 
-  const safeMarkdown = rawMarkdown
-    .replace(
-      /(?:\(|src=")(\/\.github\/assets\/[^)"]+)(?:\)|")/g,
-      (match, path) =>
-        match.replace(path, `https://raw.githubusercontent.com/heysh1n/life-xp-challenge/main${path}`)
-    )
-    .replace(
-      /(?:\(|src=["'])(\.?\/?\.github\/assets\/[^)"']+)(?:\)|["'])/g,
-      (match, path) => {
-        const normalizedPath = path.startsWith('/') ? path : `/${path.replace(/^\.\//, '')}`;
-        return match.replace(
-          path,
-          `https://raw.githubusercontent.com/heysh1n/life-xp-challenge/main${normalizedPath}`
-        );
-      }
-    );
-
-  const contentHtml = renderMarkdown(safeMarkdown);
+  const contentHtml = renderMarkdown(rawMarkdown);
 
   let tagsList: string[] = [];
   if (Array.isArray(project.tags)) {
     tagsList = project.tags;
   } else if (typeof project.tags === 'string' && project.tags.trim()) {
     tagsList = project.tags.split(',').map((t) => t.trim()).filter(Boolean);
+  } else if (Array.isArray(fallbackProject?.tags)) {
+    tagsList = fallbackProject.tags;
   }
 
   const githubUrl = project.github_url || null;
@@ -370,23 +350,22 @@ const projectCards = projects.map((project, index) => {
     githubUrl,
     demoUrl: project.demo_url || null,
     dialogId: `modal-project-${sanitizeId(project.slug || String(project.id ?? index))}`,
-    tone: index % 2 === 0 ? 'purple' : 'red',
   };
 });
 
-const topProjects = projectCards.slice(0, 3);
-const bottomProjects = projectCards.slice(3);
-
-const stackGroups = (Object.keys(categoryLabels) as TechnologyCategory[]).map((category) => ({
-  category,
-  label: categoryLabels[category],
-  names: technologies
-    .filter((technology) => technology.category === category)
-    .map((technology) => technology.name),
-}));
+const stackGroups = (Object.keys(categoryLabels) as TechnologyCategory[])
+  .map((category) => ({
+    category,
+    label: categoryLabels[category],
+    names: technologies
+      .filter((technology) => technology.category === category)
+      .map((technology) => technology.name),
+  }))
+  .filter((group) => group.names.length > 0);
 
 const enabledSocials = homePage?.socials?.filter((s) => s.enabled !== false);
 const socials = enabledSocials && enabledSocials.length > 0 ? enabledSocials : fallbackSocials;
+const socialsCountLabel = String(socials.length).padStart(2, '0');
 
 const discordId = textOrFallback(homePage?.discord_id, fallbackHomePage.discord_id ?? '995737379417640961');
 const discordUsername = textOrFallback(homePage?.discord_username, fallbackHomePage.discord_username ?? 'heysh1n');
@@ -450,7 +429,6 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
     platform,
     domain,
     title,
-    subText,
     handle,
     iconUrl,
     fallbackFavicon,
@@ -459,132 +437,66 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
 };
 ---
 <Layout discordId={discordId}>
-  <main class="workspace-main">
-    <section class="bento-container">
-      <div class="hero_card glassmorphism col-span-1">
-        <span class="hero_title">hero.md</span>
-        <div class="hero_identity">
-          <h1 class="hero_name">{heroName}</h1>
-          <p class="hero_role">{heroRole}</p>
-        </div>
-        <button
-          type="button"
-          class="hero_stack_btn"
-          data-modal-target="modal-stack"
-        >
-          [ Open stack.yml ]
-        </button>
-      </div>
+  <main class="workspace">
+    <section class="workspace-bento" aria-label="Profile, Discord presence, and music">
+      <HeroBlock
+        name={heroName}
+        role={heroRole}
+        description={heroDesc}
+        techCount={technologies.length}
+      />
 
-      <div class="env_card glassmorphism col-span-1 lg:col-span-2">
-        <DiscordProfileIsland
-          client:load
-          discordId={discordId}
-          username={discordUsername}
-          displayName={heroName}
-          fallbackTag={discordTag}
-        />
-      </div>
+      <DiscordProfileIsland
+        client:load
+        discordId={discordId}
+        username={discordUsername}
+        displayName={heroName}
+        fallbackTag={discordTag}
+      />
 
-      <div class="player_card glassmorphism col-span-1 row-span-2 lg:col-start-4">
-        <div class="player_header">
-          <span class="hero_title">player.sh</span>
-        </div>
-        <MusicWidgetIsland
-          client:load
-          backendUrl={backendUrl}
-        />
-      </div>
-
-      {topProjects.map((project) => (
-        <button
-          type="button"
-          class="project_card glassmorphism col-span-1"
-          data-modal-target={project.dialogId}
-          aria-label={`Открыть проект ${project.title}`}
-        >
-          <div class="project_card_body">
-            <div class="project_card_header">
-              <span class="project_title">{project.title}</span>
-              <span class="project_card_indicator" aria-hidden="true" title="Подробнее о проекте">
-                <svg class="indicator_icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </span>
-            </div>
-            <p class="project_description">{project.description}</p>
-          </div>
-          {project.status && (
-            <div class="project_card_footer">
-              <span class="project_status" data-status={project.status}>
-                {statusLabels[project.status]}
-              </span>
-            </div>
-          )}
-        </button>
-      ))}
+      <MusicWidgetIsland
+        client:load
+        backendUrl={backendUrl}
+      />
     </section>
 
-    {bottomProjects.length > 0 && (
-      <section class="projects-overflow-grid" aria-label="Другие проекты">
-        {bottomProjects.map((project) => (
-          <button
-            type="button"
-            class="project_card glassmorphism"
-            data-modal-target={project.dialogId}
-            aria-label={`Открыть проект ${project.title}`}
-          >
-            <div class="project_card_body">
-              <div class="project_card_header">
-                <span class="project_title">{project.title}</span>
-                <span class="project_card_indicator" aria-hidden="true" title="Подробнее о проекте">
-                  <svg class="indicator_icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                </span>
-              </div>
-              <p class="project_description">{project.description}</p>
-            </div>
-            {project.status && (
-              <div class="project_card_footer">
-                <span class="project_status" data-status={project.status}>
-                  {statusLabels[project.status]}
-                </span>
-              </div>
-            )}
-          </button>
-        ))}
-      </section>
-    )}
+    <ProjectsGrid projects={projectCards} statusLabels={statusLabels} />
 
-    <hr class="social-divider" />
+    <section class="section-block" aria-labelledby="links-heading">
+      <div class="section-head">
+        <h2 id="links-heading" class="section-label">links/</h2>
+        <span class="section-rule" aria-hidden="true"></span>
+        <span class="section-count">{socialsCountLabel}</span>
+      </div>
 
-    <nav class="socials-container" aria-label="Ссылки">
-      {socials.map((social) => {
-        const meta = getSocialMeta(social.url, social.platform);
-        return (
-          <a
-            class="social-card glassmorphism"
-            href={meta.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={meta.title}
-          >
-            <img
-              src={meta.iconUrl}
-              alt={meta.platform}
-              class="social-icon"
-              loading="lazy"
-              onerror={`this.onerror=null; this.src='${meta.fallbackFavicon}';`}
-            />
-            <div class="social-info">
-              <span class="social-title">{meta.title}</span>
-              <span class="social-handle">{meta.handle}</span>
-            </div>
-          </a>
-        );
-      })}
-    </nav>
+      <nav class="socials-grid" aria-label="Ссылки">
+        {socials.map((social) => {
+          const meta = getSocialMeta(social.url, social.platform);
+          return (
+            <a
+              class="module social-card"
+              href={meta.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={meta.title}
+            >
+              <img
+                src={meta.iconUrl}
+                alt={meta.platform}
+                class="social-icon"
+                loading="lazy"
+                data-fallback-src={meta.fallbackFavicon}
+              />
+              <div class="social-info">
+                <span class="social-title">{meta.title}</span>
+                <span class="social-handle">{meta.handle}</span>
+              </div>
+              <span class="social-arrow" aria-hidden="true">↗</span>
+            </a>
+          );
+        })}
+      </nav>
+    </section>
   </main>
 
   {projectCards.map((project) => (
@@ -604,19 +516,40 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
   ))}
 
   <ProjectModal id="modal-stack" title="Technology Stack">
-    <div class="modal_body stack_groups">
-      {stackGroups.map((group) =>
-        group.names.length > 0 && (
-          <div class="stack_group">
-            <h3 class="stack_group_label">{group.label}</h3>
-            <ul class="stack_list">
-              {group.names.map((name) => (
-                <li class="stack_chip">{name}</li>
-              ))}
-            </ul>
-          </div>
-        )
-      )}
+    <div class="stack-groups">
+      {stackGroups.map((group) => (
+        <section class="stack-group">
+          <h3 class="stack-group-label">{group.label}</h3>
+          <ul class="stack-list">
+            {group.names.map((name) => (
+              <li class="stack-chip">{name}</li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   </ProjectModal>
+
+  <script>
+    const bindSocialIconFallbacks = () => {
+      document.querySelectorAll<HTMLImageElement>('img[data-fallback-src]').forEach((img) => {
+        if (img.dataset.fallbackBound === 'true') return;
+        img.dataset.fallbackBound = 'true';
+        const applyFallback = () => {
+          const fallback = img.dataset.fallbackSrc;
+          if (fallback && img.src !== fallback) {
+            img.src = fallback;
+          }
+        };
+        if (img.complete && img.naturalWidth === 0) {
+          applyFallback();
+        } else {
+          img.addEventListener('error', applyFallback, { once: true });
+        }
+      });
+    };
+
+    bindSocialIconFallbacks();
+    document.addEventListener('astro:page-load', bindSocialIconFallbacks);
+  </script>
 </Layout>

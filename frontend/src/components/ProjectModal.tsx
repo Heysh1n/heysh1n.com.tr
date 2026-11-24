@@ -103,103 +103,109 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       aria-labelledby={`${id}-title`}
       {...({ closedby: 'any' } as any)}
     >
-      <button
-        type="button"
-        className="modal_close"
-        onClick={() => {
-          dialogRef.current?.close();
-          onClose?.();
-        }}
-        data-modal-close
-        aria-label={`Закрыть ${title}`}
-      >
-        <svg className="modal_close_icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-
-      <div className="modal_inner">
-        <div className="modal_header">
-          <div className="modal_header_info">
-            <h2 id={`${id}-title`} className="modal_title">
-              {title}
-            </h2>
-            {(status || tagsList.length > 0) && (
-              <div className="modal_meta_row">
-                {status && (
-                  <span className="project_status" data-status={statusCode || ''}>
-                    {status}
-                  </span>
-                )}
-                {tagsList.length > 0 && (
-                  <div className="modal_tags">
-                    {tagsList.map((tag, idx) => (
-                      <span key={idx} className="modal_tag">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+      <header className="modal-header">
+        <div className="modal-header-info">
+          <h2 id={`${id}-title`} className="modal-title">
+            {title}
+          </h2>
+          {(status || tagsList.length > 0) && (
+            <div className="modal-meta-row">
+              {status && (
+                <span className="project-status" data-status={statusCode || ''}>
+                  {status}
+                </span>
+              )}
+              {tagsList.length > 0 && (
+                <div className="modal-tags">
+                  {tagsList.map((tag, idx) => (
+                    <span key={idx} className="modal-tag">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {description && <p className="modal_description">{description}</p>}
+        <button
+          type="button"
+          className="modal-close"
+          onClick={() => {
+            dialogRef.current?.close();
+            onClose?.();
+          }}
+          data-modal-close
+          aria-label={`Закрыть ${title}`}
+        >
+          <svg
+            className="modal-close-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </header>
+
+      <div className="modal-scroll">
+        {description && <p className="modal-description">{description}</p>}
 
         {contentHtml && (
           <div
-            className="modal_body markdown-body"
+            className="markdown-body"
             dangerouslySetInnerHTML={{ __html: contentHtml }}
           />
         )}
 
         {children}
-
-        {(resolvedCtaUrl || resolvedGithub || demoUrl) && (
-          <div className="modal_footer">
-            {resolvedCtaUrl && (
-              <a
-                href={resolvedCtaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="modal_cta_primary"
-              >
-                <span>{resolvedCtaLabel}</span>
-                <span className="cta_arrow" aria-hidden="true">
-                  ↗
-                </span>
-              </a>
-            )}
-            {resolvedGithub && resolvedCtaUrl !== resolvedGithub && (
-              <a
-                href={resolvedGithub}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="modal_cta_secondary"
-              >
-                <span>GitHub</span>
-                <span className="cta_arrow" aria-hidden="true">
-                  →
-                </span>
-              </a>
-            )}
-            {demoUrl && resolvedCtaUrl !== demoUrl && (
-              <a
-                href={demoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="modal_cta_secondary"
-              >
-                <span>Демо</span>
-                <span className="cta_arrow" aria-hidden="true">
-                  ↗
-                </span>
-              </a>
-            )}
-          </div>
-        )}
       </div>
+
+      {(resolvedCtaUrl || resolvedGithub || demoUrl) && (
+        <footer className="modal-footer">
+          {resolvedCtaUrl && (
+            <a
+              href={resolvedCtaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary"
+            >
+              <span>{resolvedCtaLabel}</span>
+              <span className="cta-arrow" aria-hidden="true">
+                ↗
+              </span>
+            </a>
+          )}
+          {resolvedGithub && resolvedCtaUrl !== resolvedGithub && (
+            <a
+              href={resolvedGithub}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-surface"
+            >
+              <span>GitHub</span>
+              <span className="cta-arrow" aria-hidden="true">
+                ↗
+              </span>
+            </a>
+          )}
+          {demoUrl && resolvedCtaUrl !== demoUrl && (
+            <a
+              href={demoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-surface"
+            >
+              <span>Демо</span>
+              <span className="cta-arrow" aria-hidden="true">
+                ↗
+              </span>
+            </a>
+          )}
+        </footer>
+      )}
     </dialog>
   );
 };

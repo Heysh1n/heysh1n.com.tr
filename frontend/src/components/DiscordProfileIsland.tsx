@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { Activity, DiscordStatus, DiscordUser, LanyardData, LanyardResponse } from '../types/lanyard';
+import type { Activity, DiscordStatus, LanyardData, LanyardResponse } from '../types/lanyard';
 
 interface DiscordProfileIslandProps {
   discordId?: string;
@@ -18,7 +18,6 @@ const DCDN_PROFILE_URL = 'https://dcdn.dstn.to/profile/';
 function parseDiscordAssetUrl(raw?: string | null, applicationId?: string | null): string | null {
   if (!raw) return null;
 
-  // Discord Media Proxy for external rich presence assets (JetBrains, VS Code, etc.)
   if (raw.startsWith('mp:external/')) {
     return `https://media.discordapp.net/external/${raw.replace(/^mp:external\//, '')}`;
   }
@@ -28,18 +27,12 @@ function parseDiscordAssetUrl(raw?: string | null, applicationId?: string | null
   if (raw.startsWith('mp:')) {
     return `https://media.discordapp.net/${raw.replace(/^mp:\/?/, '')}`;
   }
-
-  // Spotify album art
   if (raw.startsWith('spotify:')) {
     return `https://i.scdn.co/image/${raw.replace('spotify:', '')}`;
   }
-
-  // Direct HTTP / HTTPS URLs
   if (raw.startsWith('http://') || raw.startsWith('https://')) {
     return raw;
   }
-
-  // Discord Application Asset ID uploaded to Discord Developer Portal
   if (applicationId) {
     return `https://cdn.discordapp.com/app-assets/${applicationId}/${raw}.png`;
   }
@@ -47,18 +40,13 @@ function parseDiscordAssetUrl(raw?: string | null, applicationId?: string | null
   return null;
 }
 
-/**
- * Fallback URL extractor in case Discord media proxy is unreachable or blocked.
- * Restores protocol and replaces %40 with @ for CDN endpoints (e.g. jsdelivr).
- */
 function getDirectExternalFallbackUrl(raw?: string | null): string | null {
   if (!raw) return null;
   const match = raw.match(/\/https?\/(.+)$/);
   if (match) {
-    const isHttps = raw.includes('/https/');
-    const protocol = isHttps ? 'https' : 'http';
-    const path = match[1].replace(/%40/g, '@');
-    return `${protocol}://${path}`;
+    const protocol = raw.includes('/https/') ? 'https' : 'http';
+    const assetPath = match[1].replace(/%40/g, '@');
+    return `${protocol}://${assetPath}`;
   }
   return null;
 }
@@ -68,6 +56,13 @@ const STATUS_TEXT: Record<DiscordStatus, string> = {
   idle: 'IDLE',
   dnd: 'DND',
   offline: 'OFFLINE',
+};
+
+const ACTIVITY_VERB: Record<number, string> = {
+  0: 'Playing',
+  1: 'Streaming',
+  3: 'Watching',
+  5: 'Competing',
 };
 
 export default function DiscordProfileIsland({
@@ -87,11 +82,19 @@ export default function DiscordProfileIsland({
   const [elapsedTime, setElapsedTime] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
-  const wsRef = useRef<WebSocket | null>(null);
-  const heartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [bannerHidden, setBannerHidden] = useState(false);
+  const [avatarFallback, setAvatarFallback] = useState(false);
+  const [clanBadgeHidden, setClanBadgeHidden] = useState(false);
+  const [mainAssetOverride, setMainAssetOverride] = useState<string | null | undefined>(undefined);
+  const [secondaryAssetOverride, setSecondaryAssetOverride] = useState<string | null | undefined>(
+    undefined,
+  );
 
-  // Initial REST fetch (Lanyard + Discord Profile metadata for banner/accent_color)
+  const wsRef = useRef<WebSocket | null>(null);
+  const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     let active = true;
 
@@ -103,7 +106,7 @@ export default function DiscordProfileIsland({
         if (json.success && json.data) {
           setData(json.data);
         }
-      } catch (err) {
+      } catch {
         // silent fallback
       }
     };
@@ -135,7 +138,6 @@ export default function DiscordProfileIsland({
     };
   }, [discordId]);
 
-  // Real-time WebSocket Gateway
   useEffect(() => {
     let unmounted = false;
 
@@ -168,15 +170,13 @@ export default function DiscordProfileIsland({
               );
             }
 
-            if (op === 0) {
-              if (t === 'INIT_STATE' || t === 'PRESENCE_UPDATE') {
-                if (d && d.discord_user) {
-                  setData(d);
-                }
+            if (op === 0 && (t === 'INIT_STATE' || t === 'PRESENCE_UPDATE')) {
+              if (d && d.discord_user) {
+                setData(d);
               }
             }
-          } catch (e) {
-            // ignore
+          } catch {
+            // ignore malformed websocket message
           }
         };
 
@@ -190,7 +190,7 @@ export default function DiscordProfileIsland({
         ws.onerror = () => {
           ws.close();
         };
-      } catch (e) {
+      } catch {
         if (!unmounted) {
           reconnectTimerRef.current = setTimeout(connectWs, 5000);
         }
@@ -203,6 +203,7 @@ export default function DiscordProfileIsland({
       unmounted = true;
       if (heartbeatTimerRef.current) clearInterval(heartbeatTimerRef.current);
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -214,7 +215,6 @@ export default function DiscordProfileIsland({
   const status: DiscordStatus = data?.discord_status || fallbackStatus;
   const activities = data?.activities || [];
 
-  // Filter out Spotify activity so Discord card only shows non-Spotify games/apps without duplicating player.sh
   const isSpotifyActivity = (a: Activity) =>
     a.name === 'Spotify' ||
     a.id === 'spotify:1' ||
@@ -228,7 +228,6 @@ export default function DiscordProfileIsland({
       (a.type === 0 || a.type === 1 || a.type === 3 || a.type === 5),
   );
 
-  // Real-time elapsed timer
   useEffect(() => {
     const startTime = gameActivity?.timestamps?.start;
     if (!startTime) {
@@ -237,14 +236,15 @@ export default function DiscordProfileIsland({
     }
 
     const updateTimer = () => {
-      const now = Date.now();
-      const diffSec = Math.max(0, Math.floor((now - startTime) / 1000));
+      const diffSec = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
       const hours = Math.floor(diffSec / 3600);
       const minutes = Math.floor((diffSec % 3600) / 60);
       const seconds = diffSec % 60;
 
       if (hours > 0) {
-        setElapsedTime(`${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+        setElapsedTime(
+          `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
+        );
       } else {
         setElapsedTime(`${minutes}:${String(seconds).padStart(2, '0')}`);
       }
@@ -252,15 +252,20 @@ export default function DiscordProfileIsland({
 
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
-
     return () => clearInterval(interval);
   }, [gameActivity?.timestamps?.start]);
 
-  const avatarUrl = discordUser?.avatar
+  const computedAvatarUrl = discordUser?.avatar
     ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.${
         discordUser.avatar.startsWith('a_') ? 'gif' : 'png'
       }?size=160`
     : fallbackAvatar;
+
+  useEffect(() => {
+    setAvatarFallback(false);
+  }, [computedAvatarUrl]);
+
+  const avatarUrl = avatarFallback ? fallbackAvatar : computedAvatarUrl;
 
   const userId = discordUser?.id || discordId;
   const resolvedBanner = discordUser?.banner || profileMeta?.banner;
@@ -273,6 +278,10 @@ export default function DiscordProfileIsland({
         }?size=512`
       : null;
 
+  useEffect(() => {
+    setBannerHidden(false);
+  }, [bannerUrl]);
+
   const accentColorHex =
     !bannerUrl && typeof resolvedAccentColor === 'number'
       ? `#${resolvedAccentColor.toString(16).padStart(6, '0')}`
@@ -280,7 +289,6 @@ export default function DiscordProfileIsland({
         ? profileMeta.banner_color
         : null;
 
-  // Discord Guild / Clan support (primary_guild or clan)
   const clan = discordUser?.primary_guild || discordUser?.clan;
   const clanTag = clan?.identity_enabled !== false && clan?.tag ? clan.tag : fallbackTag;
   const clanBadge =
@@ -288,36 +296,52 @@ export default function DiscordProfileIsland({
       ? `https://cdn.discordapp.com/clan-badges/${clan.identity_guild_id}/${clan.badge}.png?size=32`
       : null;
 
-  // Activity images resolution (supports external proxies, CDNs, app assets)
+  useEffect(() => {
+    setClanBadgeHidden(false);
+  }, [clanBadge]);
+
   const rawLarge = gameActivity?.assets?.large_image;
   const rawSmall = gameActivity?.assets?.small_image;
 
   const largeImgUrl = parseDiscordAssetUrl(rawLarge, gameActivity?.application_id);
   const smallImgUrl = parseDiscordAssetUrl(rawSmall, gameActivity?.application_id);
 
-  // If large image is absent but small is present, promote small to main image
-  const mainImgUrl = largeImgUrl || smallImgUrl;
+  const computedMainUrl = largeImgUrl || smallImgUrl;
   const mainRawAsset = largeImgUrl ? rawLarge : rawSmall;
   const mainAlt =
     (largeImgUrl ? gameActivity?.assets?.large_text : gameActivity?.assets?.small_text) ||
     gameActivity?.name ||
     'Activity';
 
-  const secondaryImgUrl = largeImgUrl ? smallImgUrl : null;
+  const computedSecondaryUrl = largeImgUrl ? smallImgUrl : null;
   const secondaryRawAsset = largeImgUrl ? rawSmall : null;
   const secondaryTitle = gameActivity?.assets?.small_text || '';
 
-  const handleImageError = (
-    e: React.SyntheticEvent<HTMLImageElement>,
-    rawAsset?: string | null,
-  ) => {
-    const img = e.currentTarget;
-    const fallback = getDirectExternalFallbackUrl(rawAsset);
-    if (fallback && img.src !== fallback) {
-      img.src = fallback;
-      return;
+  useEffect(() => {
+    setMainAssetOverride(undefined);
+    setSecondaryAssetOverride(undefined);
+  }, [computedMainUrl, computedSecondaryUrl]);
+
+  const mainImgUrl = mainAssetOverride === undefined ? computedMainUrl : mainAssetOverride;
+  const secondaryImgUrl =
+    secondaryAssetOverride === undefined ? computedSecondaryUrl : secondaryAssetOverride;
+
+  const handleMainImageError = () => {
+    const fallback = getDirectExternalFallbackUrl(mainRawAsset);
+    if (fallback && mainImgUrl !== fallback) {
+      setMainAssetOverride(fallback);
+    } else {
+      setMainAssetOverride(null);
     }
-    img.style.display = 'none';
+  };
+
+  const handleSecondaryImageError = () => {
+    const fallback = getDirectExternalFallbackUrl(secondaryRawAsset);
+    if (fallback && secondaryImgUrl !== fallback) {
+      setSecondaryAssetOverride(fallback);
+    } else {
+      setSecondaryAssetOverride(null);
+    }
   };
 
   const handleCopy = (e: React.MouseEvent) => {
@@ -326,203 +350,196 @@ export default function DiscordProfileIsland({
     const textToCopy = discordUser?.username || username;
     navigator.clipboard?.writeText(textToCopy);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 1800);
   };
 
   const statusLabel = STATUS_TEXT[status];
+  const activityVerb = gameActivity ? (ACTIVITY_VERB[gameActivity.type] ?? 'Playing') : null;
+  const accentStyle = accentColorHex
+    ? ({ '--discord-accent': accentColorHex } as React.CSSProperties)
+    : undefined;
 
   return (
-    <div className="discord_widget">
-      {bannerUrl ? (
+    <article className="module module-discord">
+      {bannerUrl && !bannerHidden ? (
         <img
           src={bannerUrl}
           alt=""
           aria-hidden="true"
-          className="discord_banner_img"
+          className="discord-banner-img"
           loading="lazy"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = 'none';
-          }}
+          onError={() => setBannerHidden(true)}
         />
       ) : accentColorHex ? (
-        <div
-          aria-hidden="true"
-          className="discord_banner_tint"
-          style={{ backgroundColor: accentColorHex }}
-        />
+        <div aria-hidden="true" className="discord-banner-tint" style={accentStyle} />
       ) : null}
-      <div className="discord_banner_scrim" aria-hidden="true" />
+      <div className="discord-banner-scrim" aria-hidden="true" />
 
-      <div className="discord_widget_inner">
-        <div className="discord_profile_header">
-          <div className="discord_avatar_wrapper">
-            <img
-              src={avatarUrl}
-              alt={discordUser?.global_name || displayName}
-              className="discord_avatar_img"
-              loading="lazy"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = fallbackAvatar;
-              }}
-            />
-            <span className={`discord_status_badge status_${status}`} title={statusLabel} />
+      <div className="discord-widget">
+        <header className="module-head">
+          <span className="module-label">discord.rpc</span>
+          <span className="discord-head-status" data-status={status}>
+            <span className="status-dot" data-status={status} aria-hidden="true" />
+            <span>{statusLabel}</span>
+          </span>
+        </header>
+
+        <div className="module-body">
+          <div className="discord-profile">
+            <div className="discord-avatar-wrap">
+              <img
+                src={avatarUrl}
+                alt={discordUser?.global_name || displayName}
+                className="discord-avatar-img"
+                loading="lazy"
+                onError={() => setAvatarFallback(true)}
+              />
+              <span className="discord-avatar-status" data-status={status} title={statusLabel} />
+            </div>
+
+            <div className="discord-user-meta">
+              <div className="discord-name-row">
+                <span className="discord-display-name">
+                  {discordUser?.global_name || displayName}
+                </span>
+                {clanTag && (
+                  <span className="discord-guild-tag" title={`Guild: ${clanTag}`}>
+                    {clanBadge && !clanBadgeHidden && (
+                      <img
+                        src={clanBadge}
+                        alt=""
+                        className="discord-guild-icon"
+                        loading="lazy"
+                        onError={() => setClanBadgeHidden(true)}
+                      />
+                    )}
+                    <span>{clanTag}</span>
+                  </span>
+                )}
+
+                <div className="discord-devices">
+                  {data?.active_on_discord_desktop && (
+                    <span className="discord-device" title="Desktop">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                      </svg>
+                    </span>
+                  )}
+                  {data?.active_on_discord_mobile && (
+                    <span className="discord-device" title="Mobile">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                        <line x1="12" y1="18" x2="12.01" y2="18" />
+                      </svg>
+                    </span>
+                  )}
+                  {data?.active_on_discord_web && (
+                    <span className="discord-device" title="Web">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="2" y1="12" x2="22" y2="12" />
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="discord-handle-row">
+                <span className="discord-handle">@{discordUser?.username || username}</span>
+                <button
+                  type="button"
+                  className="discord-copy-btn"
+                  data-copied={copied ? 'true' : 'false'}
+                  onClick={handleCopy}
+                  title="Copy username"
+                  aria-label="Copy Discord username"
+                >
+                  {copied ? 'copied' : 'copy'}
+                </button>
+              </div>
+
+              {customStatus && (
+                <div className="discord-custom-status">
+                  {customStatus.emoji && (
+                    <span>
+                      {customStatus.emoji.id ? (
+                        <img
+                          src={`https://cdn.discordapp.com/emojis/${customStatus.emoji.id}.${
+                            customStatus.emoji.animated ? 'gif' : 'png'
+                          }?size=24`}
+                          alt={customStatus.emoji.name}
+                          className="discord-emoji-img"
+                        />
+                      ) : (
+                        customStatus.emoji.name
+                      )}
+                    </span>
+                  )}
+                  {customStatus.state && (
+                    <span className="discord-custom-text">{customStatus.state}</span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="discord_user_meta">
-            <div className="discord_name_row">
-              <span className="discord_display_name">
-                {discordUser?.global_name || displayName}
-              </span>
-              {clanTag && (
-                <span className="discord_guild_tag" title={`Guild: ${clanTag}`}>
-                  {clanBadge && (
-                    <img
-                      src={clanBadge}
-                      alt=""
-                      className="discord_guild_icon"
-                      loading="lazy"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  )}
-                  <span className="discord_guild_text">
-                    {clanBadge ? clanTag : (clanTag.startsWith('[') ? clanTag : `[${clanTag}]`)}
+          <div className="discord-activity">
+            {gameActivity ? (
+              <>
+                <div className="discord-activity-head">
+                  <span className="discord-activity-verb">
+                    <span className="pulse-dot" aria-hidden="true" />
+                    <span>{activityVerb}</span>
                   </span>
-                </span>
-              )}
-
-              {/* Active devices badges right next to the name */}
-              <div className="discord_devices">
-                {data?.active_on_discord_desktop && (
-                  <span className="discord_device_badge" title="Desktop">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                      <line x1="8" y1="21" x2="16" y2="21" />
-                      <line x1="12" y1="17" x2="12" y2="21" />
-                    </svg>
-                  </span>
-                )}
-                {data?.active_on_discord_mobile && (
-                  <span className="discord_device_badge" title="Mobile">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-                      <line x1="12" y1="18" x2="12.01" y2="18" />
-                    </svg>
-                  </span>
-                )}
-                {data?.active_on_discord_web && (
-                  <span className="discord_device_badge" title="Web">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="2" y1="12" x2="22" y2="12" />
-                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                    </svg>
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="discord_handle_row">
-              <span className="discord_handle">@{discordUser?.username || username}</span>
-              <button
-                type="button"
-                className="discord_copy_btn"
-                onClick={handleCopy}
-                title="Copy username"
-                aria-label="Copy Discord username"
-              >
-                {copied ? 'copied' : 'copy'}
-              </button>
-            </div>
-
-            {customStatus && (
-              <div className="discord_custom_status">
-                {customStatus.emoji && (
-                  <span className="discord_custom_status_emoji">
-                    {customStatus.emoji.id ? (
+                  {elapsedTime && <span className="discord-activity-timer">{elapsedTime}</span>}
+                </div>
+                <div className="discord-activity-row">
+                  {mainImgUrl && (
+                    <div className="discord-app-media">
                       <img
-                        src={`https://cdn.discordapp.com/emojis/${customStatus.emoji.id}.${
-                          customStatus.emoji.animated ? 'gif' : 'png'
-                        }?size=24`}
-                        alt={customStatus.emoji.name}
-                        className="discord_emoji_img"
+                        src={mainImgUrl}
+                        alt={mainAlt}
+                        title={mainAlt}
+                        className="discord-app-large"
+                        loading="lazy"
+                        onError={handleMainImageError}
                       />
-                    ) : (
-                      customStatus.emoji.name
+                      {secondaryImgUrl && (
+                        <img
+                          src={secondaryImgUrl}
+                          alt={secondaryTitle}
+                          title={secondaryTitle}
+                          className="discord-app-small"
+                          loading="lazy"
+                          onError={handleSecondaryImageError}
+                        />
+                      )}
+                    </div>
+                  )}
+                  <div className="discord-app-info">
+                    <span className="discord-app-name">{gameActivity.name}</span>
+                    {gameActivity.details && (
+                      <span className="discord-app-detail">{gameActivity.details}</span>
                     )}
-                  </span>
-                )}
-                {customStatus.state && (
-                  <span className="discord_custom_status_text">{customStatus.state}</span>
-                )}
+                    {gameActivity.state && (
+                      <span className="discord-app-state">{gameActivity.state}</span>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="discord-idle-row">
+                <span className="discord-idle-label">No active session</span>
+                <span className="discord-idle-state">{statusLabel}</span>
               </div>
             )}
           </div>
         </div>
-
-        {/* Activity Section (Game / Status - Spotify ignored to prevent duplicate with player.sh) */}
-        <div className="discord_activity_box">
-          {gameActivity ? (
-            <div className="discord_game_activity">
-              <div className="discord_activity_label">
-                <span className="discord_activity_pulse" />
-                <span>
-                  {gameActivity.type === 1
-                    ? 'Streaming'
-                    : gameActivity.type === 3
-                      ? 'Watching'
-                      : gameActivity.type === 5
-                        ? 'Competing'
-                        : 'Playing'}
-                </span>
-              </div>
-              <div className="discord_activity_content">
-                {mainImgUrl && (
-                  <div className="discord_game_image_wrapper">
-                    <img
-                      src={mainImgUrl}
-                      alt={mainAlt}
-                      title={mainAlt}
-                      className="discord_game_large_img"
-                      loading="lazy"
-                      onError={(e) => handleImageError(e, mainRawAsset)}
-                    />
-                    {secondaryImgUrl && (
-                      <img
-                        src={secondaryImgUrl}
-                        alt={secondaryTitle}
-                        title={secondaryTitle}
-                        className="discord_game_small_img"
-                        loading="lazy"
-                        onError={(e) => handleImageError(e, secondaryRawAsset)}
-                      />
-                    )}
-                  </div>
-                )}
-                <div className="discord_game_info">
-                  <span className="discord_game_name">{gameActivity.name}</span>
-                  {gameActivity.details && (
-                    <span className="discord_game_details">{gameActivity.details}</span>
-                  )}
-                  {gameActivity.state && (
-                    <span className="discord_game_state">{gameActivity.state}</span>
-                  )}
-                  {elapsedTime && <span className="discord_game_timer">{elapsedTime}</span>}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="discord_idle_activity">
-              <div className={`status_indicator_wrap status_indicator_${status}`}>
-                <span className="status_indicator_ring" />
-                <span className="status_indicator_dot" />
-              </div>
-              <span className={`discord_status_text text_${status}`}>{statusLabel}</span>
-            </div>
-          )}
-        </div>
       </div>
-    </div>
+    </article>
   );
 }

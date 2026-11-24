@@ -2,24 +2,39 @@
 interface Props {
   name: string;
   role: string;
+  description: string;
+  techCount: number;
 }
 
-const { name, role } = Astro.props;
+const { name, role, description, techCount } = Astro.props;
 ---
 
-<button
-  type="button"
-  data-modal-target="modal-hero"
-  aria-controls="modal-hero"
-  aria-expanded="false"
-  aria-label={`Open ${name} profile details`}
-  class="glassmorphism project_card col-span-12 md:col-span-8"
->
-  <div class="flex h-full w-full items-end justify-between gap-4">
-    <div>
-      <p class="hero_title">hero.md</p>
-      <h1 class="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">{name}</h1>
+<article class="module module-hero">
+  <header class="module-head">
+    <span class="module-label">hero.md</span>
+    <span class="module-meta">heysh1n.com.tr</span>
+  </header>
+
+  <div class="module-body">
+    <div class="hero-identity">
+      <h1 class="hero-name">{name}</h1>
+      <p class="hero-role">{role}</p>
     </div>
-    <p class="text-right text-sm font-medium text-[#d8b4fe] sm:text-base">{role}</p>
+    <p class="hero-desc">{description}</p>
   </div>
-</button>
+
+  <footer class="module-foot">
+    <button
+      type="button"
+      class="btn-surface hero-stack-trigger"
+      data-modal-target="modal-stack"
+      aria-controls="modal-stack"
+    >
+      <span>stack.yml</span>
+      <span class="hero-stack-meta">
+        <span>{techCount}</span>
+        <span aria-hidden="true">↗</span>
+      </span>
+    </button>
+  </footer>
+</article>

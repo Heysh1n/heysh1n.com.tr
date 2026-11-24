@@ -48,9 +48,11 @@ const PLATFORM_ALIAS_MAP: Record<string, string> = {
   'linux-x64': 'linux-x86_64',
   linux_x64: 'linux-x86_64',
   'x86_64-linux': 'linux-x86_64',
+  x86_64_linux: 'linux-x86_64',
   'linux-amd64': 'linux-x86_64',
   linux_amd64: 'linux-x86_64',
   'amd64-linux': 'linux-x86_64',
+  amd64_linux: 'linux-x86_64',
 
   // Linux ARM64
   'linux-aarch64': 'linux-aarch64',
@@ -58,7 +60,9 @@ const PLATFORM_ALIAS_MAP: Record<string, string> = {
   'linux-arm64': 'linux-aarch64',
   linux_arm64: 'linux-aarch64',
   'aarch64-linux': 'linux-aarch64',
+  aarch64_linux: 'linux-aarch64',
   'arm64-linux': 'linux-aarch64',
+  arm64_linux: 'linux-aarch64',
 
   // Windows x86_64
   'windows-x86_64': 'windows-x86_64',
@@ -69,11 +73,16 @@ const PLATFORM_ALIAS_MAP: Record<string, string> = {
   'windows-x64': 'windows-x86_64',
   windows_x64: 'windows-x86_64',
   'win-x64': 'windows-x86_64',
+  win_x64: 'windows-x86_64',
+  'win-x86_64': 'windows-x86_64',
+  win_x86_64: 'windows-x86_64',
   win64: 'windows-x86_64',
   'amd64-windows': 'windows-x86_64',
+  amd64_windows: 'windows-x86_64',
   'windows-amd64': 'windows-x86_64',
   windows_amd64: 'windows-x86_64',
   'x86_64-windows': 'windows-x86_64',
+  x86_64_windows: 'windows-x86_64',
 
   // Windows ARM64
   'windows-aarch64': 'windows-aarch64',
@@ -84,8 +93,13 @@ const PLATFORM_ALIAS_MAP: Record<string, string> = {
   'windows-arm64': 'windows-aarch64',
   windows_arm64: 'windows-aarch64',
   'win-arm64': 'windows-aarch64',
+  win_arm64: 'windows-aarch64',
+  'win-aarch64': 'windows-aarch64',
+  win_aarch64: 'windows-aarch64',
   'arm64-windows': 'windows-aarch64',
+  arm64_windows: 'windows-aarch64',
   'aarch64-windows': 'windows-aarch64',
+  aarch64_windows: 'windows-aarch64',
 
   // macOS / Darwin ARM64 (canonicalized to macos-arm64 per PLATFORM_FALLBACK_PRIORITY;
   // darwin-arm64 is also checked via PLATFORM_ENUM_PEERS)
@@ -98,9 +112,13 @@ const PLATFORM_ALIAS_MAP: Record<string, string> = {
   'apple-silicon': 'macos-arm64',
   apple_silicon: 'macos-arm64',
   'macos-aarch64': 'macos-arm64',
+  macos_aarch64: 'macos-arm64',
   'darwin-aarch64': 'macos-arm64',
+  darwin_aarch64: 'macos-arm64',
   'arm64-darwin': 'macos-arm64',
+  arm64_darwin: 'macos-arm64',
   'arm64-macos': 'macos-arm64',
+  arm64_macos: 'macos-arm64',
 
   // macOS / Darwin x86_64
   'macos-x86_64': 'macos-x86_64',
@@ -124,21 +142,24 @@ const PLATFORM_ENUM_PEERS: Record<string, string[]> = {
   'darwin-x86_64': ['macos-x86_64'],
 }
 
-export const normalizePlatformAlias = (raw: string | null | undefined): string | null => {
+const sanitizePlatformInput = (raw: string | null | undefined): string | null => {
   if (typeof raw !== 'string') return null
   const cleaned = raw.trim().toLowerCase()
   if (!cleaned || cleaned.length > 64 || !/^[a-z0-9][a-z0-9._-]*$/.test(cleaned)) {
     return null
   }
+  return cleaned
+}
+
+export const normalizePlatformAlias = (raw: string | null | undefined): string | null => {
+  const cleaned = sanitizePlatformInput(raw)
+  if (!cleaned) return null
   return PLATFORM_ALIAS_MAP[cleaned] ?? cleaned
 }
 
 const buildPlatformLookupCandidates = (raw: string | null | undefined): string[] => {
-  if (typeof raw !== 'string') return []
-  const cleaned = raw.trim().toLowerCase()
-  if (!cleaned || cleaned.length > 64 || !/^[a-z0-9][a-z0-9._-]*$/.test(cleaned)) {
-    return []
-  }
+  const cleaned = sanitizePlatformInput(raw)
+  if (!cleaned) return []
 
   const normalized = PLATFORM_ALIAS_MAP[cleaned] ?? cleaned
   const candidates: string[] = []
@@ -312,7 +333,7 @@ const getQueryParams = (req: { url?: string }): URLSearchParams => {
   }
 }
 
-const resolveRequestedChannel = (params: URLSearchParams): ReleaseChannel => {
+export const resolveRequestedChannel = (params: URLSearchParams): ReleaseChannel => {
   const raw = params.get('channel')?.trim().toLowerCase()
   if (raw && VALID_CHANNELS.has(raw as ReleaseChannel)) {
     return raw as ReleaseChannel
@@ -321,11 +342,8 @@ const resolveRequestedChannel = (params: URLSearchParams): ReleaseChannel => {
 }
 
 const resolveRequestedPlatform = (params: URLSearchParams): string | null => {
-  const raw = (params.get('platform') || params.get('target'))?.trim().toLowerCase()
-  if (!raw || raw.length > 64 || !/^[a-z0-9][a-z0-9._-]*$/.test(raw)) {
-    return null
-  }
-  return raw
+  const raw = params.get('platform')?.trim() || params.get('target')?.trim()
+  return sanitizePlatformInput(raw)
 }
 
 export const buildSfcProManifest = (

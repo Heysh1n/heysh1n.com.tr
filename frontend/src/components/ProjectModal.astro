@@ -61,86 +61,86 @@ const resolvedCtaLabel =
   aria-labelledby={`${id}-title`}
   closedby="any"
 >
-  <button
-    type="button"
-    class="modal_close"
-    data-modal-close
-    aria-label={`Закрыть ${title}`}
-  >
-    <svg class="modal_close_icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
-  </button>
-
-  <div class="modal_inner">
-    <div class="modal_header">
-      <div class="modal_header_info">
-        <h2 id={`${id}-title`} class="modal_title">{title}</h2>
-        {(status || tagsList.length > 0) && (
-          <div class="modal_meta_row">
-            {status && (
-              <span class="project_status" data-status={statusCode || ''}>
-                {status}
-              </span>
-            )}
-            {tagsList.length > 0 && (
-              <div class="modal_tags">
-                {tagsList.map((tag) => (
-                  <span class="modal_tag">{tag}</span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+  <header class="modal-header">
+    <div class="modal-header-info">
+      <h2 id={`${id}-title`} class="modal-title">{title}</h2>
+      {(status || tagsList.length > 0) && (
+        <div class="modal-meta-row">
+          {status && (
+            <span class="project-status" data-status={statusCode || ''}>
+              {status}
+            </span>
+          )}
+          {tagsList.length > 0 && (
+            <div class="modal-tags">
+              {tagsList.map((tag) => (
+                <span class="modal-tag">{tag}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
 
-    {description && <p class="modal_description">{description}</p>}
+    <button
+      type="button"
+      class="modal-close"
+      data-modal-close
+      aria-label={`Закрыть ${title}`}
+    >
+      <svg class="modal-close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
+  </header>
+
+  <div class="modal-scroll">
+    {description && <p class="modal-description">{description}</p>}
 
     {renderedHtml && (
-      <div class="modal_body markdown-body" set:html={renderedHtml} />
+      <div class="markdown-body" set:html={renderedHtml} />
     )}
 
     <slot />
-
-    {(resolvedCtaUrl || resolvedGithub || demoUrl) && (
-      <div class="modal_footer">
-        {resolvedCtaUrl && (
-          <a
-            href={resolvedCtaUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="modal_cta_primary"
-          >
-            <span>{resolvedCtaLabel}</span>
-            <span class="cta_arrow" aria-hidden="true">↗</span>
-          </a>
-        )}
-        {resolvedGithub && resolvedCtaUrl !== resolvedGithub && (
-          <a
-            href={resolvedGithub}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="modal_cta_secondary"
-          >
-            <span>GitHub</span>
-            <span class="cta_arrow" aria-hidden="true">→</span>
-          </a>
-        )}
-        {demoUrl && resolvedCtaUrl !== demoUrl && (
-          <a
-            href={demoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="modal_cta_secondary"
-          >
-            <span>Демо</span>
-            <span class="cta_arrow" aria-hidden="true">↗</span>
-          </a>
-        )}
-      </div>
-    )}
   </div>
+
+  {(resolvedCtaUrl || resolvedGithub || demoUrl) && (
+    <footer class="modal-footer">
+      {resolvedCtaUrl && (
+        <a
+          href={resolvedCtaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn-primary"
+        >
+          <span>{resolvedCtaLabel}</span>
+          <span class="cta-arrow" aria-hidden="true">↗</span>
+        </a>
+      )}
+      {resolvedGithub && resolvedCtaUrl !== resolvedGithub && (
+        <a
+          href={resolvedGithub}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn-surface"
+        >
+          <span>GitHub</span>
+          <span class="cta-arrow" aria-hidden="true">↗</span>
+        </a>
+      )}
+      {demoUrl && resolvedCtaUrl !== demoUrl && (
+        <a
+          href={demoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn-surface"
+        >
+          <span>Демо</span>
+          <span class="cta-arrow" aria-hidden="true">↗</span>
+        </a>
+      )}
+    </footer>
+  )}
 </dialog>
 
 <script>

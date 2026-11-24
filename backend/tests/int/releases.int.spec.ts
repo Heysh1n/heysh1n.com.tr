@@ -16,6 +16,7 @@ import {
   normalizePlatformAlias,
   releaseDownloadEndpoint,
   releaseDownloadHeadEndpoint,
+  resolveRequestedChannel,
   updateManifestEndpoint,
   vscodeUpdateManifestEndpoint,
 } from '@/endpoints/releases'
@@ -718,6 +719,207 @@ describe('Dynamic manifest endpoints (GET /api/sfcp/update.json & /api/sfcp/vsco
         },
       }),
     )
+
+    // Case-insensitive aliases, blank ?platform with ?target fallback, and fallback priority on unknown alias
+    expect(normalizePlatformAlias('  LINUX_AMD64  ')).toBe('linux-x86_64')
+    expect(normalizePlatformAlias('Win32-ARM64')).toBe('windows-aarch64')
+    expect(normalizePlatformAlias('../evil')).toBeNull()
+
+    const targetFallbackReq = new Request(
+      'https://api.heysh1n.com.tr/api/sfcp/update.json?platform=%20&target=Apple-Silicon',
+      {
+        method: 'GET',
+        headers: { 'x-real-ip': '203.0.113.56' },
+      },
+    )
+    ;(targetFallbackReq as any).payload = { find: vi.fn().mockResolvedValue({ docs }) }
+    const targetFallbackRes = await updateManifestEndpoint.handler(targetFallbackReq as never)
+    expect(targetFallbackRes.status).toBe(200)
+    const targetFallbackBody = await targetFallbackRes.json()
+    expect(targetFallbackBody.download_url).toBe(
+      'https://api.heysh1n.com.tr/api/sfcp/downloads/sfcp-3.0.0-macos-arm64.tar.gz',
+    )
+
+    // When both macos-arm64 and darwin-arm64 exist, explicit darwin-arm64 matches exact target
+    // while generic apple-silicon follows canonical macos-arm64 priority
+    const dualMacDocs: ReleaseDocument[] = [
+      ...docs,
+      {
+        id: 106,
+        product: 'sfc-pro',
+        version: '3.0.0',
+        target: 'darwin-arm64',
+        channel: 'stable',
+        status: 'published',
+        filename: 'sfcp-3.0.0-darwin-arm64.tar.gz',
+        sha256: sha256Hex('darwin-explicit'),
+      },
+    ]
+    expect(
+      buildSfcProManifest(dualMacDocs, {
+        baseUrl: 'https://api.heysh1n.com.tr',
+        requestedPlatform: 'darwin-arm64',
+      }).download_url,
+    ).toBe('https://api.heysh1n.com.tr/api/sfcp/downloads/sfcp-3.0.0-darwin-arm64.tar.gz')
+    expect(
+      buildSfcProManifest(dualMacDocs, {
+        baseUrl: 'https://api.heysh1n.com.tr',
+        requestedPlatform: 'apple-silicon',
+      }).download_url,
+    ).toBe('https://api.heysh1n.com.tr/api/sfcp/downloads/sfcp-3.0.0-macos-arm64.tar.gz')
+
+    // Unknown platform alias cleanly falls back to PLATFORM_FALLBACK_PRIORITY (linux-x86_64)
+    expect(
+      buildSfcProManifest(docs, {
+        baseUrl: 'https://api.heysh1n.com.tr',
+        requestedPlatform: 'solaris-sparc',
+      }).download_url,
+    ).toBe('https://api.heysh1n.com.tr/api/sfcp/downloads/sfcp-3.0.0-linux-x86_64.tar.gz')
+  })
+
+  it('defaults channel to stable unless ?channel=beta or ?channel=nightly is explicitly requested', async () => {
+    process.env.NEXT_PUBLIC_SERVER_URL = 'https://api.heysh1n.com.tr'
+    process.env.SFCP_LATEST_VERSION = '1.0.0'
+    process.env.SFCP_DOWNLOAD_URL = 'https://cdn.heysh1n.com.tr/sfc-pro-1.0.0.tar.gz'
+
+    expect(resolveRequestedChannel(new URLSearchParams())).toBe('stable')
+    expect(resolveRequestedChannel(new URLSearchParams('channel='))).toBe('stable')
+    expect(resolveRequestedChannel(new URLSearchParams('channel=canary'))).toBe('stable')
+    expect(resolveRequestedChannel(new URLSearchParams('channel=beta'))).toBe('beta')
+    expect(resolveRequestedChannel(new URLSearchParams('channel=NIGHTLY'))).toBe('nightly')
+
+    const betaWinSha = sha256Hex('sfc-pro-beta-win')
+    const nightlyArmSha = sha256Hex('sfc-pro-nightly-linux-arm64')
+    const vscodeNightlySha = sha256Hex('sfcp-vscode-nightly')
+
+    const channelDocs: ReleaseDocument[] = [
+      {
+        id: 301,
+        product: 'sfc-pro',
+        version: '3.0.0',
+        target: 'linux-x86_64',
+        channel: 'stable',
+        status: 'published',
+        filename: 'sfcp-3.0.0-linux-x86_64.tar.gz',
+        sha256: linuxSha10,
+      },
+      {
+        id: 302,
+        product: 'sfc-pro',
+        version: '3.1.0-beta.1',
+        target: 'windows-x86_64',
+        channel: 'beta',
+        status: 'published',
+        filename: 'sfcp-3.1.0-beta.1-windows-x86_64.zip',
+        sha256: betaWinSha,
+      },
+      {
+        id: 303,
+        product: 'sfc-pro',
+        version: '3.2.0-nightly.4',
+        target: 'linux-aarch64',
+        channel: 'nightly',
+        status: 'published',
+        filename: 'sfcp-3.2.0-nightly.4-linux-aarch64.tar.gz',
+        sha256: nightlyArmSha,
+      },
+      {
+        id: 304,
+        product: 'sfcp-vscode',
+        version: '0.11.0-nightly.2',
+        target: 'vscode',
+        channel: 'nightly',
+        status: 'published',
+        filename: 'sfcp-vscode-0.11.0-nightly.2.vsix',
+        sha256: vscodeNightlySha,
+      },
+    ]
+
+    const makeChannelAwareFind = () =>
+      vi.fn().mockImplementation(async ({ where }: any) => {
+        const filters = Array.isArray(where?.and) ? where.and : []
+        const docs = channelDocs.filter((doc) =>
+          filters.every((cond: Record<string, { equals: unknown }>) => {
+            const [field, op] = Object.entries(cond)[0]
+            return (doc as unknown as Record<string, unknown>)[field] === op.equals
+          }),
+        )
+        return { docs }
+      })
+
+    // Invalid channel falls back to stable
+    const invalidChannelFind = makeChannelAwareFind()
+    const invalidChannelReq = new Request(
+      'https://api.heysh1n.com.tr/api/sfcp/update.json?channel=experimental&platform=linux-x64',
+      { method: 'GET', headers: { 'x-real-ip': '203.0.113.60' } },
+    )
+    ;(invalidChannelReq as any).payload = { find: invalidChannelFind }
+    const invalidChannelRes = await updateManifestEndpoint.handler(invalidChannelReq as never)
+    expect(invalidChannelRes.status).toBe(200)
+    const invalidChannelBody = await invalidChannelRes.json()
+    expect(invalidChannelBody.channel).toBe('stable')
+    expect(invalidChannelBody.version).toBe('3.0.0')
+
+    // Explicit ?channel=beta with Windows alias
+    const betaFind = makeChannelAwareFind()
+    const betaReq = new Request(
+      'https://api.heysh1n.com.tr/api/sfcp/update.json?channel=beta&platform=win64',
+      { method: 'GET', headers: { 'x-real-ip': '203.0.113.61' } },
+    )
+    ;(betaReq as any).payload = { find: betaFind }
+    const betaRes = await updateManifestEndpoint.handler(betaReq as never)
+    expect(betaRes.status).toBe(200)
+    const betaBody = await betaRes.json()
+    expect(betaBody.channel).toBe('beta')
+    expect(betaBody.version).toBe('3.1.0-beta.1')
+    expect(betaBody.download_url).toBe(
+      'https://api.heysh1n.com.tr/api/sfcp/downloads/sfcp-3.1.0-beta.1-windows-x86_64.zip',
+    )
+    expect(betaBody.sha256).toBe(betaWinSha)
+
+    // Explicit ?channel=nightly with Linux ARM64 alias
+    const nightlyFind = makeChannelAwareFind()
+    const nightlyReq = new Request(
+      'https://api.heysh1n.com.tr/api/sfcp/update.json?channel=nightly&platform=aarch64-linux',
+      { method: 'GET', headers: { 'x-real-ip': '203.0.113.62' } },
+    )
+    ;(nightlyReq as any).payload = { find: nightlyFind }
+    const nightlyRes = await updateManifestEndpoint.handler(nightlyReq as never)
+    expect(nightlyRes.status).toBe(200)
+    const nightlyBody = await nightlyRes.json()
+    expect(nightlyBody.channel).toBe('nightly')
+    expect(nightlyBody.version).toBe('3.2.0-nightly.4')
+    expect(nightlyBody.download_url).toBe(
+      'https://api.heysh1n.com.tr/api/sfcp/downloads/sfcp-3.2.0-nightly.4-linux-aarch64.tar.gz',
+    )
+    expect(nightlyBody.sha256).toBe(nightlyArmSha)
+
+    // Empty non-stable channel does NOT leak stable envFallback
+    const emptyBetaManifest = buildSfcProManifest([], {
+      baseUrl: 'https://api.heysh1n.com.tr',
+      channel: 'beta',
+      envFallback: {
+        version: '1.0.0',
+        downloadUrl: 'https://cdn.heysh1n.com.tr/sfc-pro-1.0.0.tar.gz',
+        sha256: linuxSha10,
+      },
+    })
+    expect(emptyBetaManifest.channel).toBe('beta')
+    expect(emptyBetaManifest.version).toBe('0.0.0')
+    expect(emptyBetaManifest.download_url).toBeNull()
+
+    // VS Code manifest also respects explicit ?channel=nightly and defaults omitted channel to stable
+    const vscodeNightlyReq = new Request(
+      'https://api.heysh1n.com.tr/api/sfcp/vscode-update.json?channel=nightly',
+      { method: 'GET', headers: { 'x-real-ip': '203.0.113.63' } },
+    )
+    ;(vscodeNightlyReq as any).payload = { find: makeChannelAwareFind() }
+    const vscodeNightlyRes = await vscodeUpdateManifestEndpoint.handler(vscodeNightlyReq as never)
+    expect(vscodeNightlyRes.status).toBe(200)
+    const vscodeNightlyBody = await vscodeNightlyRes.json()
+    expect(vscodeNightlyBody.channel).toBe('nightly')
+    expect(vscodeNightlyBody.version).toBe('0.11.0-nightly.2')
+    expect(vscodeNightlyBody.sha256).toBe(vscodeNightlySha)
   })
 
   it('dynamically generates sfcp-vscode manifest pointing to latest .vsix package', async () => {

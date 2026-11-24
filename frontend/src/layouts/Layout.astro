@@ -23,7 +23,7 @@ const imageUrl = `${siteUrl}shell.jpg`;
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <meta charset="UTF-8" />
@@ -49,21 +49,14 @@ const imageUrl = `${siteUrl}shell.jpg`;
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={imageUrl} />
   </head>
-  <body class="relative min-h-screen w-full overflow-x-hidden overflow-y-auto">
+  <body>
     <img
       src="/assets/bg/shell_dark.jpg"
       alt=""
       aria-hidden="true"
-      class="fixed inset-0 w-full h-[100dvh] object-cover object-center -z-50 pointer-events-none select-none"
+      class="workspace-bg-image"
     />
-    <div
-      aria-hidden="true"
-      class="pointer-events-none bg-[url('/shell.jpg')] bg-cover bg-center bg-no-repeat fixed inset-0 w-full h-[100dvh] -z-20 opacity-10 mix-blend-overlay"
-    ></div>
-    <div
-      aria-hidden="true"
-      class="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(10,10,10,0.78)_100%)]"
-    ></div>
+    <div aria-hidden="true" class="workspace-bg-scrim"></div>
     <slot />
   </body>
 </html>

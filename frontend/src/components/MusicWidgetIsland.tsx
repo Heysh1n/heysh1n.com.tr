@@ -30,7 +30,7 @@ type TrackData = {
 };
 
 const DEFAULT_COVER = '/assets/bg/music_thumbnail.svg';
-const POLL_INTERVAL_MS = 6000; // Poll every 6 seconds (within 5-10s window)
+const POLL_INTERVAL_MS = 6000;
 const FETCH_TIMEOUT_MS = 6000;
 
 const IDLE_TRACK: TrackData = {
@@ -46,7 +46,7 @@ const IDLE_TRACK: TrackData = {
 };
 
 const formatTime = (ms: number | null | undefined): string => {
-  if (ms == null || isNaN(ms) || ms < 0) return '0:00';
+  if (ms == null || Number.isNaN(ms) || ms < 0) return '--:--';
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -68,10 +68,14 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
 
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [userWantsAudio, setUserWantsAudio] = useState(false);
+  const [coverFailed, setCoverFailed] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentPreviewRef = useRef<string | null>(null);
 
-  // Managed single HTMLAudioElement for real 30-second track preview
+  useEffect(() => {
+    setCoverFailed(false);
+  }, [trackData.cover]);
+
   useEffect(() => {
     const audio = new Audio();
     audio.loop = true;
@@ -81,9 +85,7 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
     const handlePlay = () => setIsAudioPlaying(true);
     const handlePause = () => setIsAudioPlaying(false);
     const handleEnded = () => setIsAudioPlaying(false);
-    const handleError = () => {
-      setIsAudioPlaying(false);
-    };
+    const handleError = () => setIsAudioPlaying(false);
 
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
@@ -102,7 +104,6 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
     };
   }, []);
 
-  // When previewUrl changes, update audio source and resume if user previously enabled audio
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -129,7 +130,6 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
     }
   }, [trackData.previewUrl, userWantsAudio]);
 
-  // Actively poll ${backendUrl}/api/spotify/now-playing every 6 seconds
   useEffect(() => {
     let isMounted = true;
 
@@ -145,7 +145,7 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
       const timeoutId = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
       try {
-        let res = await fetch(endpoint, {
+        const res = await fetch(endpoint, {
           signal: controller.signal,
           headers: { Accept: 'application/json' },
         }).catch(() => null);
@@ -155,7 +155,6 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
           data = (await res.json().catch(() => null)) as SpotifyResponse | null;
         }
 
-        // Fallback: If primary remote host fails or lacks configured Spotify credentials, try local dev server
         if (
           (!data || data.error || (!data.title && !data.isPlaying)) &&
           cleanBase !== 'http://127.0.0.1:3000' &&
@@ -168,12 +167,16 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
             });
             if (localRes.ok) {
               const localData: SpotifyResponse = await localRes.json();
-              if (localData && (localData.title || localData.isPlaying !== undefined) && !localData.error) {
+              if (
+                localData &&
+                (localData.title || localData.isPlaying !== undefined) &&
+                !localData.error
+              ) {
                 data = localData;
               }
             }
           } catch {
-            // Local dev server not reachable
+            // Local dev server unreachable
           }
         }
 
@@ -184,7 +187,7 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
             name: data.title,
             artist: data.artist || 'Unknown Artist',
             cover: data.albumArt || DEFAULT_COVER,
-            badge: data.isPlaying ? 'NOW PLAYING' : 'RECENTLY PLAYED',
+            badge: data.isPlaying ? 'NOW PLAYING' : 'RECENT',
             isPlaying: Boolean(data.isPlaying),
             url: data.trackUrl || null,
             previewUrl: data.previewUrl || null,
@@ -195,7 +198,7 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
           setTrackData((prev) =>
             prev.name !== 'Connecting...'
               ? { ...IDLE_TRACK, artist: 'Spotify paused', previewUrl: data?.previewUrl || null }
-              : IDLE_TRACK
+              : IDLE_TRACK,
           );
         } else {
           setTrackData((prev) => (prev.badge === 'SYNCING' ? IDLE_TRACK : prev));
@@ -218,17 +221,15 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
     };
   }, [backendUrl]);
 
-  // Smooth local second-by-second progress advancement while playing
   useEffect(() => {
     if (!trackData.isPlaying || !trackData.durationMs) return;
 
     const interval = window.setInterval(() => {
       setTrackData((prev) => {
         if (!prev.isPlaying || !prev.durationMs || prev.progressMs == null) return prev;
-        const nextProgress = prev.progressMs + 1000;
         return {
           ...prev,
-          progressMs: Math.min(nextProgress, prev.durationMs),
+          progressMs: Math.min(prev.progressMs + 1000, prev.durationMs),
         };
       });
     }, 1000);
@@ -276,7 +277,10 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
   const progressPercent =
     trackData.durationMs && trackData.progressMs != null
       ? Math.min(100, Math.max(0, (trackData.progressMs / trackData.durationMs) * 100))
-      : null;
+      : 0;
+
+  const isLive = trackData.isPlaying || isAudioPlaying;
+  const badgeText = isAudioPlaying && !trackData.isPlaying ? 'PREVIEW' : trackData.badge;
 
   const previewLabel = !hasPreview
     ? 'Preview unavailable for this track'
@@ -288,150 +292,178 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
     ? 'Preview unavailable for this track'
     : isAudioPlaying
       ? 'Mute preview'
-      : 'Play 30s preview';
+      : 'Unmute preview';
 
   const restartLabel = hasPreview ? 'Restart 30s preview' : 'Preview unavailable for this track';
+  const resolvedCover = coverFailed ? DEFAULT_COVER : trackData.cover;
+  const progressStyle = { '--progress': `${progressPercent}%` } as React.CSSProperties;
 
   return (
-    <div className="player_card_inner">
-      <div className="player_zone_top">
-        <button
-          type="button"
-          onClick={toggleAudio}
-          disabled={!hasPreview}
-          className="volume_btn"
-          data-active={isAudioPlaying ? 'true' : 'false'}
-          title={volumeLabel}
-          aria-label={volumeLabel}
-        >
-          <img
-            src={isAudioPlaying ? '/assets/svg/v_max.svg' : '/assets/svg/v_off.svg'}
-            alt={isAudioPlaying ? 'Volume active' : 'Volume muted'}
-            className="hero_volume-image"
-          />
-        </button>
-
-        <a
-          href={trackData.url || '#'}
-          target={trackData.url ? '_blank' : undefined}
-          rel={trackData.url ? 'noopener noreferrer' : undefined}
-          className="player_cover_link"
-          data-clickable={trackData.url ? 'true' : 'false'}
-          title={trackData.url ? `Open "${trackData.name}" on Spotify` : `${trackData.name}, ${trackData.artist}`}
-          onClick={(e) => {
-            if (!trackData.url) e.preventDefault();
-          }}
-        >
-          <img
-            src={trackData.cover}
-            alt={trackData.name}
-            className="hero_player-image"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src = DEFAULT_COVER;
-            }}
-          />
-        </a>
-
-        <div className="player_meta">
-          <span className="player_title" title={trackData.name}>
-            {trackData.name}
-          </span>
-          <span className="player_artist" title={trackData.artist}>
-            {trackData.artist}
-          </span>
-        </div>
-      </div>
-
-      <div className="player_zone_middle">
-        <div className="player_status_row">
-          {trackData.isPlaying || isAudioPlaying ? (
-            <span className="player_status_badge player_status_live">
-              <span className="player_visualizer" aria-hidden="true">
-                <span className="visualizer_bar bar_1" />
-                <span className="visualizer_bar bar_2" />
-                <span className="visualizer_bar bar_3" />
+    <article className="module module-player">
+      <div className="player-widget">
+        <header className="module-head">
+          <span className="module-label">player.sh</span>
+          <span className="player-status-badge" data-live={isLive ? 'true' : 'false'}>
+            {isLive ? (
+              <span className="player-eq" aria-hidden="true">
+                <span className="player-eq-bar" />
+                <span className="player-eq-bar" />
+                <span className="player-eq-bar" />
               </span>
-              {isAudioPlaying && !trackData.isPlaying ? 'PREVIEW PLAYING' : trackData.badge}
-            </span>
-          ) : (
-            <span className="player_status_badge">
-              <span className="player_status_dot" aria-hidden="true" />
-              {trackData.badge}
-            </span>
-          )}
-        </div>
+            ) : (
+              <span className="player-status-dot" aria-hidden="true" />
+            )}
+            <span>{badgeText}</span>
+          </span>
+        </header>
 
-        {progressPercent != null ? (
-          <div className="player_progress_wrap">
-            <div className="player_progress_track">
-              <div className="player_progress_fill" style={{ width: `${progressPercent}%` }} />
+        <div className="module-body">
+          <div className="player-track">
+            <a
+              href={trackData.url || '#'}
+              target={trackData.url ? '_blank' : undefined}
+              rel={trackData.url ? 'noopener noreferrer' : undefined}
+              className="player-cover-link"
+              data-clickable={trackData.url ? 'true' : 'false'}
+              title={
+                trackData.url
+                  ? `Open "${trackData.name}" on Spotify`
+                  : `${trackData.name}, ${trackData.artist}`
+              }
+              onClick={(e) => {
+                if (!trackData.url) e.preventDefault();
+              }}
+            >
+              <img
+                src={resolvedCover}
+                alt={trackData.name}
+                className="player-cover-img"
+                onError={() => setCoverFailed(true)}
+              />
+            </a>
+
+            <div className="player-meta">
+              {trackData.url ? (
+                <a
+                  href={trackData.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="player-title-link"
+                  title={trackData.name}
+                >
+                  {trackData.name}
+                </a>
+              ) : (
+                <span className="player-title" title={trackData.name}>
+                  {trackData.name}
+                </span>
+              )}
+              <span className="player-artist" title={trackData.artist}>
+                {trackData.artist}
+              </span>
+              <span className="player-hint">
+                {hasPreview ? '30s preview available' : 'live metadata'}
+              </span>
             </div>
-            <div className="player_progress_times">
+          </div>
+
+          <div className="player-progress">
+            <div className="player-progress-track">
+              <div className="player-progress-fill" style={progressStyle} />
+            </div>
+            <div className="player-progress-times">
               <span>{formatTime(trackData.progressMs)}</span>
               <span>{formatTime(trackData.durationMs)}</span>
             </div>
           </div>
-        ) : (
-          <div className="player_timeline_wrap">
-            <img
-              src="/assets/svg/line+timestamp.svg"
-              alt=""
-              aria-hidden="true"
-              className="player_timeline"
-            />
-          </div>
-        )}
+        </div>
 
-        <div className="player_ui">
-          <div className="player_controls">
+        <footer className="module-foot player-foot">
+          <div className="player-controls">
             <button
               type="button"
-              className="player_control_btn"
+              className="player-btn"
               aria-label={restartLabel}
               onClick={restartTrack}
               disabled={!hasPreview}
               title={restartLabel}
             >
-              <img src="/assets/svg/s_back.svg" alt="" aria-hidden="true" className="player_control_icon" />
+              <svg className="player-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="19 20 9 12 19 4 19 20" strokeLinecap="round" strokeLinejoin="round" />
+                <line x1="5" y1="19" x2="5" y2="5" strokeLinecap="round" />
+              </svg>
             </button>
 
             <button
               type="button"
-              className="player_control_btn player_control_btn_primary"
+              className="player-btn player-btn-primary"
               data-playing={isAudioPlaying ? 'true' : 'false'}
               onClick={toggleAudio}
               disabled={!hasPreview}
               aria-label={previewLabel}
               title={previewLabel}
             >
-              <img
-                src={isAudioPlaying ? '/assets/svg/pause.svg' : '/assets/svg/play.svg'}
-                alt=""
-                aria-hidden="true"
-                className="player_control_icon_primary"
-              />
+              {isAudioPlaying ? (
+                <svg className="player-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="6" y="4" width="4" height="16" rx="1" />
+                  <rect x="14" y="4" width="4" height="16" rx="1" />
+                </svg>
+              ) : (
+                <svg className="player-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="6 4 20 12 6 20 6 4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
             </button>
 
             <button
               type="button"
-              className="player_control_btn"
+              className="player-btn"
               aria-label={restartLabel}
               onClick={restartTrack}
               disabled={!hasPreview}
               title={restartLabel}
             >
-              <img src="/assets/svg/s_forward.svg" alt="" aria-hidden="true" className="player_control_icon" />
+              <svg className="player-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="5 4 15 12 5 20 5 4" strokeLinecap="round" strokeLinejoin="round" />
+                <line x1="19" y1="5" x2="19" y2="19" strokeLinecap="round" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              className="player-btn"
+              onClick={toggleAudio}
+              disabled={!hasPreview}
+              data-active={isAudioPlaying ? 'true' : 'false'}
+              title={volumeLabel}
+              aria-label={volumeLabel}
+            >
+              {isAudioPlaying ? (
+                <svg className="player-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" strokeLinecap="round" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg className="player-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" strokeLinecap="round" strokeLinejoin="round" />
+                  <line x1="23" y1="9" x2="17" y2="15" strokeLinecap="round" />
+                  <line x1="17" y1="9" x2="23" y2="15" strokeLinecap="round" />
+                </svg>
+              )}
             </button>
           </div>
-        </div>
-      </div>
 
-      <div className="player_zone_bottom">
-        <span className="player_source_badge">
-          <span className="player_source_dot" data-live={trackData.isPlaying ? 'true' : 'false'} aria-hidden="true" />
-          SPOTIFY
-        </span>
+          <span className="player-source">
+            <span
+              className="player-source-dot"
+              data-live={trackData.isPlaying ? 'true' : 'false'}
+              aria-hidden="true"
+            />
+            <span>SPOTIFY</span>
+          </span>
+        </footer>
       </div>
-    </div>
+    </article>
   );
 }

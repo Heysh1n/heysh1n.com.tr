@@ -1,43 +1,78 @@
 ---
 type ProjectStatus = 'active' | 'in_progress' | 'archived';
 
-interface ProjectCard {
+export interface ProjectCardItem {
+  title: string;
   description: string;
   dialogId: string;
   status?: ProjectStatus | null;
-  title: string;
-  tone?: 'purple' | 'red';
+  tagsList: string[];
 }
 
 interface Props {
-  projectCards: ProjectCard[];
+  projects: ProjectCardItem[];
   statusLabels: Record<ProjectStatus, string>;
 }
 
-const { projectCards, statusLabels } = Astro.props;
+const { projects, statusLabels } = Astro.props;
+const gridCols = projects.length <= 1 ? '1' : projects.length === 2 || projects.length === 4 ? '2' : '3';
+const countLabel = String(projects.length).padStart(2, '0');
 ---
 
-{projectCards.map((project) => (
-  <button
-    type="button"
-    data-modal-target={project.dialogId}
-    aria-controls={project.dialogId}
-    aria-expanded="false"
-    aria-label={`Open ${project.title} project details`}
-    class="glassmorphism project_card col-span-6 md:col-span-4"
-  >
-    <div class="project_card_body">
-      <div class="project_card_header">
-        <h2 class="project_title">{project.title}</h2>
-      </div>
-      <p class="project_description">{project.description}</p>
-    </div>
-    {project.status && (
-      <div class="project_card_footer">
-        <span class="project_status" data-status={project.status}>
-          {statusLabels[project.status]}
-        </span>
-      </div>
-    )}
-  </button>
-))}
+<section class="section-block" aria-labelledby="projects-heading">
+  <div class="section-head">
+    <h2 id="projects-heading" class="section-label">projects/</h2>
+    <span class="section-rule" aria-hidden="true"></span>
+    <span class="section-count">{countLabel}</span>
+  </div>
+
+  <div class="projects-grid" data-cols={gridCols}>
+    {projects.map((project) => {
+      const visibleTags = project.tagsList.slice(0, 3);
+      return (
+        <button
+          type="button"
+          class="module project-card"
+          data-modal-target={project.dialogId}
+          aria-controls={project.dialogId}
+          aria-label={`Открыть проект ${project.title}`}
+        >
+          <div class="project-card-main">
+            <div class="project-card-top">
+              <span class="project-title">{project.title}</span>
+              <span class="project-indicator" aria-hidden="true" title="Подробнее о проекте">
+                <svg
+                  class="project-indicator-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+            </div>
+            <p class="project-description">{project.description}</p>
+          </div>
+
+          {(project.status || visibleTags.length > 0) && (
+            <div class="project-card-foot">
+              {project.status && (
+                <span class="project-status" data-status={project.status}>
+                  {statusLabels[project.status]}
+                </span>
+              )}
+              {visibleTags.length > 0 && (
+                <div class="project-tags">
+                  {visibleTags.map((tag) => (
+                    <span class="project-tag">{tag}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </button>
+      );
+    })}
+  </div>
+</section>
