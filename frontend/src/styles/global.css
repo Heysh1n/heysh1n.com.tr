@@ -498,13 +498,13 @@
     z-index: 0;
     object-fit: cover;
     object-position: center;
-    opacity: 0.65;
+    opacity: 0.50;
   }
 
   .discord-banner-tint {
     z-index: 0;
     background: linear-gradient(155deg, var(--discord-accent, transparent) 0%, transparent 92%);
-    opacity: 0.50;
+    opacity: 0.70;
   }
 
   .discord-banner-scrim {

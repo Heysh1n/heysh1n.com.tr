@@ -13,36 +13,66 @@ const { discordId, defaultIcon = '/favicon.svg' } = Astro.props;
 
     const LANYARD_WS = 'wss://api.lanyard.rest/socket';
     const LANYARD_REST = `https://api.lanyard.rest/v1/users/${discordId}`;
-    let currentFaviconUrl = '';
+    const IMAGE_TIMEOUT_MS = 5000;
+
+    let currentFaviconUrl = defaultIcon;
     let heartbeatTimer = null;
     let socket = null;
     let reconnectTimer = null;
+    let updateSeq = 0;
 
-    // 1. Динамическая замена <link rel="icon"> в <head>
-    function setFavicon(url) {
+    function detectIconType(url) {
+      const clean = String(url).split('?')[0].toLowerCase();
+      if (clean.endsWith('.svg')) return 'image/svg+xml';
+      if (clean.endsWith('.ico')) return 'image/x-icon';
+      if (clean.endsWith('.webp')) return 'image/webp';
+      if (clean.endsWith('.jpg') || clean.endsWith('.jpeg')) return 'image/jpeg';
+      if (clean.endsWith('.gif')) return 'image/gif';
+      return 'image/png';
+    }
+
+    function applyFaviconLink(url) {
       if (!url || url === currentFaviconUrl) return;
       currentFaviconUrl = url;
 
-      // Удаляем старые теги иконки во избежание конфликтов и браузерного кэширования
-      const oldLinks = document.querySelectorAll("link[rel*='icon']");
-      oldLinks.forEach((el) => el.remove());
+      document.querySelectorAll("link[rel~='icon']").forEach((el) => el.remove());
 
       const link = document.createElement('link');
       link.rel = 'icon';
-      link.type = url.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+      link.type = detectIconType(url);
       link.href = url;
-
-      // При ошибке загрузки изображения (например, битый ассет) откатываемся на дефолт
-      link.onerror = () => {
-        if (link.href !== defaultIcon) {
-          link.href = defaultIcon;
-        }
-      };
-
       document.head.appendChild(link);
     }
 
-    // 2. Преобразование ассетов активности в валидный URL
+    function canLoadImage(url) {
+      return new Promise((resolve) => {
+        if (!url) {
+          resolve(false);
+          return;
+        }
+        if (url === defaultIcon) {
+          resolve(true);
+          return;
+        }
+
+        const img = new Image();
+        let settled = false;
+        const finish = (ok) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          img.onload = null;
+          img.onerror = null;
+          resolve(ok);
+        };
+
+        const timer = setTimeout(() => finish(false), IMAGE_TIMEOUT_MS);
+        img.onload = () => finish(img.naturalWidth > 0);
+        img.onerror = () => finish(false);
+        img.src = url;
+      });
+    }
+
     function resolveAssetUrl(assetId, appId) {
       if (!assetId) return null;
 
@@ -52,6 +82,9 @@ const { discordId, defaultIcon = '/favicon.svg' } = Astro.props;
       if (assetId.startsWith('external/')) {
         return `https://media.discordapp.net/external/${assetId.replace(/^external\//, '')}`;
       }
+      if (assetId.startsWith('mp:')) {
+        return `https://media.discordapp.net/${assetId.replace(/^mp:\/?/, '')}`;
+      }
       if (assetId.startsWith('spotify:')) {
         return `https://i.scdn.co/image/${assetId.replace('spotify:', '')}`;
       }
@@ -59,55 +92,77 @@ const { discordId, defaultIcon = '/favicon.svg' } = Astro.props;
         return assetId;
       }
       if (appId) {
-        return `https://cdn.discordapp.com/app-assets/${appId}/${assetId}.png?size=64`;
+        return `https://cdn.discordapp.com/app-assets/${appId}/${assetId}.png?size=128`;
       }
       return null;
     }
 
-    // 3. Выбор иконки на основе Lanyard Presence:
-    //    Активность (игра/IDE) -> Spotify -> Аватарка Discord -> Дефолтная иконка
-    function updateIconFromPresence(data) {
-      if (!data) return;
+    function getDirectExternalFallbackUrl(raw) {
+      if (!raw) return null;
+      const match = raw.match(/\/https?\/(.+)$/);
+      if (!match) return null;
+      const protocol = raw.includes('/https/') ? 'https' : 'http';
+      return `${protocol}://${match[1].replace(/%40/g, '@')}`;
+    }
 
-      const user = data.discord_user;
-      const activities = data.activities || [];
+    function collectCandidateIcons(data) {
+      const candidates = [];
+      const pushUnique = (url) => {
+        if (url && !candidates.includes(url)) {
+          candidates.push(url);
+        }
+      };
 
-      // Приоритет 1: Активность в игре, стриме или IDE (type 0: Playing, 1: Streaming, 2: Listening, 3: Watching, 5: Competing)
+      const user = data?.discord_user;
+      const activities = data?.activities || [];
+
       const activeGame = activities.find(
         (a) =>
           (a.type === 0 || a.type === 1 || a.type === 2 || a.type === 3 || a.type === 5) &&
-          (a.assets?.large_image || a.assets?.small_image)
+          (a.assets?.large_image || a.assets?.small_image),
       );
 
       if (activeGame) {
         const rawAsset = activeGame.assets?.large_image || activeGame.assets?.small_image;
-        const iconUrl = resolveAssetUrl(rawAsset, activeGame.application_id);
-        if (iconUrl) {
-          setFavicon(iconUrl);
+        pushUnique(resolveAssetUrl(rawAsset, activeGame.application_id));
+        pushUnique(getDirectExternalFallbackUrl(rawAsset));
+      }
+
+      if (data?.listening_to_spotify && data?.spotify?.album_art_url) {
+        pushUnique(data.spotify.album_art_url);
+      }
+
+      if (user?.id && user?.avatar) {
+        // Request static PNG frame so browsers reliably render animated avatars in tabs
+        pushUnique(`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`);
+      }
+
+      pushUnique(defaultIcon);
+      return candidates;
+    }
+
+    async function updateIconFromPresence(data) {
+      if (!data) return;
+      const seq = ++updateSeq;
+      const candidates = collectCandidateIcons(data);
+
+      for (const candidate of candidates) {
+        if (seq !== updateSeq) return;
+        if (candidate === currentFaviconUrl) return;
+
+        const loaded = await canLoadImage(candidate);
+        if (seq !== updateSeq) return;
+        if (loaded) {
+          applyFaviconLink(candidate);
           return;
         }
       }
 
-      // Приоритет 2: Spotify трек
-      if (data.listening_to_spotify && data.spotify?.album_art_url) {
-        setFavicon(data.spotify.album_art_url);
-        return;
+      if (seq === updateSeq) {
+        applyFaviconLink(defaultIcon);
       }
-
-      // Приоритет 3: Откат на Discord аватарку пользователя
-      if (user?.id && user?.avatar) {
-        const isGif = user.avatar.startsWith('a_');
-        const ext = isGif ? 'gif' : 'png';
-        const avatarUrl = `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.${ext}?size=64`;
-        setFavicon(avatarUrl);
-        return;
-      }
-
-      // Приоритет 4: Дефолтная иконка сайта
-      setFavicon(defaultIcon);
     }
 
-    // 4. Мгновенная инициализация через REST API (до открытия WebSocket)
     fetch(LANYARD_REST)
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
@@ -117,7 +172,6 @@ const { discordId, defaultIcon = '/favicon.svg' } = Astro.props;
       })
       .catch(() => {});
 
-    // 5. Постоянное real-time соединение через Lanyard WebSocket Gateway
     function connect() {
       clearTimeout(reconnectTimer);
       try {
@@ -127,7 +181,6 @@ const { discordId, defaultIcon = '/favicon.svg' } = Astro.props;
           try {
             const { op, d, t } = JSON.parse(event.data);
 
-            // Opcode 1: HELLO от сервера -> запуск Heartbeat и подписка
             if (op === 1) {
               const interval = d.heartbeat_interval || 30000;
               clearInterval(heartbeatTimer);
@@ -137,11 +190,9 @@ const { discordId, defaultIcon = '/favicon.svg' } = Astro.props;
                 }
               }, interval);
 
-              // Opcode 2: Подписка на пользователя
               socket.send(JSON.stringify({ op: 2, d: { subscribe_to_id: discordId } }));
             }
 
-            // Opcode 0: Обновление статуса (INIT_STATE или PRESENCE_UPDATE)
             if (op === 0 && (t === 'INIT_STATE' || t === 'PRESENCE_UPDATE')) {
               updateIconFromPresence(d);
             }
@@ -163,7 +214,6 @@ const { discordId, defaultIcon = '/favicon.svg' } = Astro.props;
 
     connect();
 
-    // Очистка при смене страницы в Astro View Transitions
     document.addEventListener(
       'astro:before-swap',
       () => {
@@ -171,7 +221,7 @@ const { discordId, defaultIcon = '/favicon.svg' } = Astro.props;
         clearTimeout(reconnectTimer);
         if (socket) socket.close();
       },
-      { once: true }
+      { once: true },
     );
   })();
 </script>

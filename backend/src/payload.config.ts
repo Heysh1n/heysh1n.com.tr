@@ -67,6 +67,12 @@ export default buildConfig({
       icons: [
         {
           rel: 'icon',
+          type: 'image/x-icon',
+          sizes: '32x32',
+          url: '/favicon.ico',
+        },
+        {
+          rel: 'icon',
           type: 'image/svg+xml',
           url: '/favicon.svg',
         },
