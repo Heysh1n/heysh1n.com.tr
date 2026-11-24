@@ -13,6 +13,7 @@ import {
 import {
   buildSfcProManifest,
   buildVscodeManifest,
+  normalizePlatformAlias,
   releaseDownloadEndpoint,
   releaseDownloadHeadEndpoint,
   updateManifestEndpoint,
@@ -549,6 +550,174 @@ describe('Dynamic manifest endpoints (GET /api/sfcp/update.json & /api/sfcp/vsco
       'https://heysh1n.com.tr/api/sfcp/downloads/sfc-pro-1.1.0-windows-x86_64.zip',
     )
     expect(manifest.sha256).toBe(winSha10)
+  })
+
+  it('normalizes platform/architecture aliases before release lookup and preserves default stable channel', async () => {
+    process.env.NEXT_PUBLIC_SERVER_URL = 'https://api.heysh1n.com.tr'
+
+    expect(normalizePlatformAlias('linux-x64')).toBe('linux-x86_64')
+    expect(normalizePlatformAlias('x86_64-linux')).toBe('linux-x86_64')
+    expect(normalizePlatformAlias('linux_amd64')).toBe('linux-x86_64')
+    expect(normalizePlatformAlias('linux-arm64')).toBe('linux-aarch64')
+    expect(normalizePlatformAlias('linux-aarch64')).toBe('linux-aarch64')
+    expect(normalizePlatformAlias('aarch64-linux')).toBe('linux-aarch64')
+    expect(normalizePlatformAlias('win32-x64')).toBe('windows-x86_64')
+    expect(normalizePlatformAlias('windows-x64')).toBe('windows-x86_64')
+    expect(normalizePlatformAlias('win64')).toBe('windows-x86_64')
+    expect(normalizePlatformAlias('amd64-windows')).toBe('windows-x86_64')
+    expect(normalizePlatformAlias('win32-arm64')).toBe('windows-aarch64')
+    expect(normalizePlatformAlias('windows-arm64')).toBe('windows-aarch64')
+    expect(normalizePlatformAlias('arm64-windows')).toBe('windows-aarch64')
+    expect(normalizePlatformAlias('darwin-arm64')).toBe('macos-arm64')
+    expect(normalizePlatformAlias('macos-arm64')).toBe('macos-arm64')
+    expect(normalizePlatformAlias('osx-arm64')).toBe('macos-arm64')
+    expect(normalizePlatformAlias('apple-silicon')).toBe('macos-arm64')
+
+    const linuxArmSha = sha256Hex('linux-arm64')
+    const winArmSha = sha256Hex('windows-arm64')
+
+    const docs: ReleaseDocument[] = [
+      {
+        id: 101,
+        product: 'sfc-pro',
+        version: '3.0.0',
+        target: 'linux-x86_64',
+        channel: 'stable',
+        status: 'published',
+        filename: 'sfcp-3.0.0-linux-x86_64.tar.gz',
+        sha256: linuxSha10,
+      },
+      {
+        id: 102,
+        product: 'sfc-pro',
+        version: '3.0.0',
+        target: 'linux-aarch64',
+        channel: 'stable',
+        status: 'published',
+        filename: 'sfcp-3.0.0-linux-aarch64.tar.gz',
+        sha256: linuxArmSha,
+      },
+      {
+        id: 103,
+        product: 'sfc-pro',
+        version: '3.0.0',
+        target: 'windows-x86_64',
+        channel: 'stable',
+        status: 'published',
+        filename: 'sfcp-3.0.0-windows-x86_64.zip',
+        sha256: winSha10,
+      },
+      {
+        id: 104,
+        product: 'sfc-pro',
+        version: '3.0.0',
+        target: 'windows-aarch64',
+        channel: 'stable',
+        status: 'published',
+        filename: 'sfcp-3.0.0-windows-aarch64.zip',
+        sha256: winArmSha,
+      },
+      {
+        id: 105,
+        product: 'sfc-pro',
+        version: '3.0.0',
+        target: 'macos-arm64',
+        channel: 'stable',
+        status: 'published',
+        filename: 'sfcp-3.0.0-macos-arm64.tar.gz',
+        sha256: macSha10,
+      },
+    ]
+
+    const aliasExpectations: Array<[string, string, string]> = [
+      ['linux-x64', 'sfcp-3.0.0-linux-x86_64.tar.gz', linuxSha10],
+      ['x86_64-linux', 'sfcp-3.0.0-linux-x86_64.tar.gz', linuxSha10],
+      ['linux_amd64', 'sfcp-3.0.0-linux-x86_64.tar.gz', linuxSha10],
+      ['linux-arm64', 'sfcp-3.0.0-linux-aarch64.tar.gz', linuxArmSha],
+      ['aarch64-linux', 'sfcp-3.0.0-linux-aarch64.tar.gz', linuxArmSha],
+      ['win32-x64', 'sfcp-3.0.0-windows-x86_64.zip', winSha10],
+      ['windows-x64', 'sfcp-3.0.0-windows-x86_64.zip', winSha10],
+      ['win64', 'sfcp-3.0.0-windows-x86_64.zip', winSha10],
+      ['amd64-windows', 'sfcp-3.0.0-windows-x86_64.zip', winSha10],
+      ['win32-arm64', 'sfcp-3.0.0-windows-aarch64.zip', winArmSha],
+      ['windows-arm64', 'sfcp-3.0.0-windows-aarch64.zip', winArmSha],
+      ['arm64-windows', 'sfcp-3.0.0-windows-aarch64.zip', winArmSha],
+      ['darwin-arm64', 'sfcp-3.0.0-macos-arm64.tar.gz', macSha10],
+      ['macos-arm64', 'sfcp-3.0.0-macos-arm64.tar.gz', macSha10],
+      ['osx-arm64', 'sfcp-3.0.0-macos-arm64.tar.gz', macSha10],
+      ['apple-silicon', 'sfcp-3.0.0-macos-arm64.tar.gz', macSha10],
+    ]
+
+    for (const [alias, expectedFile, expectedSha] of aliasExpectations) {
+      const manifest = buildSfcProManifest(docs, {
+        baseUrl: 'https://api.heysh1n.com.tr',
+        requestedPlatform: alias,
+      })
+      expect(manifest.channel).toBe('stable')
+      expect(manifest.download_url).toBe(`https://api.heysh1n.com.tr/api/sfcp/downloads/${expectedFile}`)
+      expect(manifest.sha256).toBe(expectedSha)
+    }
+
+    // Also resolves darwin-arm64 DB target when caller requests macos-arm64 / osx-arm64 / apple-silicon
+    const darwinOnlyDocs: ReleaseDocument[] = [
+      {
+        id: 201,
+        product: 'sfc-pro',
+        version: '3.0.0',
+        target: 'linux-x86_64',
+        channel: 'stable',
+        status: 'published',
+        filename: 'sfcp-3.0.0-linux-x86_64.tar.gz',
+        sha256: linuxSha10,
+      },
+      {
+        id: 202,
+        product: 'sfc-pro',
+        version: '3.0.0',
+        target: 'darwin-arm64',
+        channel: 'stable',
+        status: 'published',
+        filename: 'sfcp-3.0.0-darwin-arm64.tar.gz',
+        sha256: macSha10,
+      },
+    ]
+
+    for (const alias of ['darwin-arm64', 'macos-arm64', 'osx-arm64', 'apple-silicon']) {
+      const manifest = buildSfcProManifest(darwinOnlyDocs, {
+        baseUrl: 'https://api.heysh1n.com.tr',
+        requestedPlatform: alias,
+      })
+      expect(manifest.download_url).toBe(
+        'https://api.heysh1n.com.tr/api/sfcp/downloads/sfcp-3.0.0-darwin-arm64.tar.gz',
+      )
+    }
+
+    // Endpoint preserves default stable channel when ?channel is omitted
+    const find = vi.fn().mockResolvedValue({ docs })
+    const req = new Request('https://api.heysh1n.com.tr/api/sfcp/update.json?platform=win32-x64', {
+      method: 'GET',
+      headers: { 'x-real-ip': '203.0.113.55' },
+    })
+    ;(req as any).payload = { find }
+
+    const response = await updateManifestEndpoint.handler(req as never)
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.channel).toBe('stable')
+    expect(body.downloadUrl).toBe(
+      'https://api.heysh1n.com.tr/api/sfcp/downloads/sfcp-3.0.0-windows-x86_64.zip',
+    )
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          and: [
+            { product: { equals: 'sfc-pro' } },
+            { channel: { equals: 'stable' } },
+            { status: { equals: 'published' } },
+          ],
+        },
+      }),
+    )
   })
 
   it('dynamically generates sfcp-vscode manifest pointing to latest .vsix package', async () => {

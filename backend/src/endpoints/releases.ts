@@ -41,6 +41,126 @@ const PLATFORM_FALLBACK_PRIORITY = [
   'windows-aarch64',
 ]
 
+const PLATFORM_ALIAS_MAP: Record<string, string> = {
+  // Linux x86_64
+  'linux-x86_64': 'linux-x86_64',
+  linux_x86_64: 'linux-x86_64',
+  'linux-x64': 'linux-x86_64',
+  linux_x64: 'linux-x86_64',
+  'x86_64-linux': 'linux-x86_64',
+  'linux-amd64': 'linux-x86_64',
+  linux_amd64: 'linux-x86_64',
+  'amd64-linux': 'linux-x86_64',
+
+  // Linux ARM64
+  'linux-aarch64': 'linux-aarch64',
+  linux_aarch64: 'linux-aarch64',
+  'linux-arm64': 'linux-aarch64',
+  linux_arm64: 'linux-aarch64',
+  'aarch64-linux': 'linux-aarch64',
+  'arm64-linux': 'linux-aarch64',
+
+  // Windows x86_64
+  'windows-x86_64': 'windows-x86_64',
+  windows_x86_64: 'windows-x86_64',
+  'win32-x64': 'windows-x86_64',
+  win32_x64: 'windows-x86_64',
+  'win32-x86_64': 'windows-x86_64',
+  'windows-x64': 'windows-x86_64',
+  windows_x64: 'windows-x86_64',
+  'win-x64': 'windows-x86_64',
+  win64: 'windows-x86_64',
+  'amd64-windows': 'windows-x86_64',
+  'windows-amd64': 'windows-x86_64',
+  windows_amd64: 'windows-x86_64',
+  'x86_64-windows': 'windows-x86_64',
+
+  // Windows ARM64
+  'windows-aarch64': 'windows-aarch64',
+  windows_aarch64: 'windows-aarch64',
+  'win32-arm64': 'windows-aarch64',
+  win32_arm64: 'windows-aarch64',
+  'win32-aarch64': 'windows-aarch64',
+  'windows-arm64': 'windows-aarch64',
+  windows_arm64: 'windows-aarch64',
+  'win-arm64': 'windows-aarch64',
+  'arm64-windows': 'windows-aarch64',
+  'aarch64-windows': 'windows-aarch64',
+
+  // macOS / Darwin ARM64 (canonicalized to macos-arm64 per PLATFORM_FALLBACK_PRIORITY;
+  // darwin-arm64 is also checked via PLATFORM_ENUM_PEERS)
+  'macos-arm64': 'macos-arm64',
+  macos_arm64: 'macos-arm64',
+  'darwin-arm64': 'macos-arm64',
+  darwin_arm64: 'macos-arm64',
+  'osx-arm64': 'macos-arm64',
+  osx_arm64: 'macos-arm64',
+  'apple-silicon': 'macos-arm64',
+  apple_silicon: 'macos-arm64',
+  'macos-aarch64': 'macos-arm64',
+  'darwin-aarch64': 'macos-arm64',
+  'arm64-darwin': 'macos-arm64',
+  'arm64-macos': 'macos-arm64',
+
+  // macOS / Darwin x86_64
+  'macos-x86_64': 'macos-x86_64',
+  macos_x86_64: 'macos-x86_64',
+  'macos-x64': 'macos-x86_64',
+  macos_x64: 'macos-x86_64',
+  'darwin-x86_64': 'macos-x86_64',
+  darwin_x86_64: 'macos-x86_64',
+  'darwin-x64': 'macos-x86_64',
+  darwin_x64: 'macos-x86_64',
+  'osx-x86_64': 'macos-x86_64',
+  'osx-x64': 'macos-x86_64',
+  'x86_64-darwin': 'macos-x86_64',
+  'x86_64-macos': 'macos-x86_64',
+}
+
+const PLATFORM_ENUM_PEERS: Record<string, string[]> = {
+  'macos-arm64': ['darwin-arm64'],
+  'darwin-arm64': ['macos-arm64'],
+  'macos-x86_64': ['darwin-x86_64'],
+  'darwin-x86_64': ['macos-x86_64'],
+}
+
+export const normalizePlatformAlias = (raw: string | null | undefined): string | null => {
+  if (typeof raw !== 'string') return null
+  const cleaned = raw.trim().toLowerCase()
+  if (!cleaned || cleaned.length > 64 || !/^[a-z0-9][a-z0-9._-]*$/.test(cleaned)) {
+    return null
+  }
+  return PLATFORM_ALIAS_MAP[cleaned] ?? cleaned
+}
+
+const buildPlatformLookupCandidates = (raw: string | null | undefined): string[] => {
+  if (typeof raw !== 'string') return []
+  const cleaned = raw.trim().toLowerCase()
+  if (!cleaned || cleaned.length > 64 || !/^[a-z0-9][a-z0-9._-]*$/.test(cleaned)) {
+    return []
+  }
+
+  const normalized = PLATFORM_ALIAS_MAP[cleaned] ?? cleaned
+  const candidates: string[] = []
+  const pushUnique = (value: string) => {
+    if (value && !candidates.includes(value)) {
+      candidates.push(value)
+    }
+  }
+
+  // Exact match first (e.g. DB explicitly stores darwin-arm64 or a custom target)
+  pushUnique(cleaned)
+  pushUnique(normalized)
+  for (const peer of PLATFORM_ENUM_PEERS[normalized] ?? []) {
+    pushUnique(peer)
+  }
+  for (const peer of PLATFORM_ENUM_PEERS[cleaned] ?? []) {
+    pushUnique(peer)
+  }
+
+  return candidates
+}
+
 export interface PlatformManifestEntry {
   download_url: string
   sha256: string | null
@@ -307,9 +427,28 @@ export const buildSfcProManifest = (
   }
 
   let fallbackEntry: PlatformManifestEntry | null = null
-  if (options.requestedPlatform && platforms[options.requestedPlatform]) {
-    fallbackEntry = platforms[options.requestedPlatform]
-  } else {
+  const lookupCandidates = buildPlatformLookupCandidates(options.requestedPlatform)
+
+  for (const candidate of lookupCandidates) {
+    if (platforms[candidate]) {
+      fallbackEntry = platforms[candidate]
+      break
+    }
+  }
+
+  if (!fallbackEntry && lookupCandidates.length > 0) {
+    const normalizedRequested = normalizePlatformAlias(options.requestedPlatform)
+    if (normalizedRequested) {
+      const matchingKey = sortedPlatformKeys.find(
+        (key) => normalizePlatformAlias(key) === normalizedRequested,
+      )
+      if (matchingKey) {
+        fallbackEntry = platforms[matchingKey]
+      }
+    }
+  }
+
+  if (!fallbackEntry) {
     for (const preferred of PLATFORM_FALLBACK_PRIORITY) {
       if (platforms[preferred]) {
         fallbackEntry = platforms[preferred]

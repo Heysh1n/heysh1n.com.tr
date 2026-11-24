@@ -333,13 +333,12 @@ export default function DiscordProfileIsland({
 
   return (
     <div className="discord_widget">
-      {/* Dynamic Discord Banner or Accent Color Glass Tint */}
       {bannerUrl ? (
         <img
           src={bannerUrl}
           alt=""
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 w-full h-full object-cover object-center z-0 opacity-20 brightness-75"
+          className="discord_banner_img"
           loading="lazy"
           onError={(e) => {
             (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -348,14 +347,13 @@ export default function DiscordProfileIsland({
       ) : accentColorHex ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 w-full h-full z-0"
-          style={{ backgroundColor: accentColorHex, opacity: 0.2 }}
+          className="discord_banner_tint"
+          style={{ backgroundColor: accentColorHex }}
         />
       ) : null}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0f0717]/40 via-transparent to-[#0f0717]/80 z-0 pointer-events-none"></div>
+      <div className="discord_banner_scrim" aria-hidden="true" />
 
-      <div className="relative z-10 flex flex-col w-full drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-        {/* Profile Header */}
+      <div className="discord_widget_inner">
         <div className="discord_profile_header">
           <div className="discord_avatar_wrapper">
             <img
@@ -432,8 +430,9 @@ export default function DiscordProfileIsland({
                 className="discord_copy_btn"
                 onClick={handleCopy}
                 title="Copy username"
+                aria-label="Copy Discord username"
               >
-                {copied ? '✓ Copied' : 'copy'}
+                {copied ? 'copied' : 'copy'}
               </button>
             </div>
 
@@ -515,9 +514,9 @@ export default function DiscordProfileIsland({
             </div>
           ) : (
             <div className="discord_idle_activity">
-              <div className={`status_beacon_wrap beacon_${status}`}>
-                <span className="status_beacon_ring" />
-                <span className="status_beacon_dot" />
+              <div className={`status_indicator_wrap status_indicator_${status}`}>
+                <span className="status_indicator_ring" />
+                <span className="status_indicator_dot" />
               </div>
               <span className={`discord_status_text text_${status}`}>{statusLabel}</span>
             </div>

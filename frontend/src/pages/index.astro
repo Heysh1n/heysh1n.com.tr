@@ -102,18 +102,18 @@ const fallbackProjects: Project[] = [
     tags: ['Python', 'FastAPI', 'HWID Security', 'AI Pipeline'],
     cta_label: 'Купить ключ',
     cta_url: 'https://t.me/heysh1n',
-    markdown_description: `# ⚡ Smart File Collector PRO (SFCP)
+    markdown_description: `# Smart File Collector PRO (SFCP)
 
-**Smart File Collector PRO** — высокопроизводительный корпоративный инструмент для интеллектуального сбора контекста кодовой базы и интеграции AI-ассистентов в командные пайплайны.
+CLI и TUI утилита для сборки контекста репозитория под LLM (Codex, Claude, GPT, Antigravity).
 
-### 🚀 Ключевые возможности:
-- **Интеллектуальный сбор файлов**: Автоматическая фильтрация артефактов сборки, node_modules, git-директорий и чувствительных секретов.
-- **Monolithic Context Generation**: Упаковка выбранных модулей и структуры репозитория в оптимизированный единый промпт-контекст для LLM (Codex, Claude, GPT, Antigravity).
-- **HWID & License Verification**: Встроенная криптографическая валидация лицензий по аппаратному профилю (SHA-256 + Salt).
-- **TUI & CLI режимы**: Интерактивное дерево проекта, пресеты и пакетные консольные команды для CI/CD автоматизации.
+### Что умеет
+- Фильтрует артефакты сборки, \`node_modules\`, \`.git\` и секреты по правилам проекта.
+- Собирает выбранные модули и дерево каталогов в один файл контекста.
+- Проверяет лицензии с привязкой к HWID (SHA-256 + salt).
+- Работает в интерактивном TUI-дереве и в пакетном CLI-режиме для CI/CD.
 
 \`\`\`bash
-# Сбор контекста проекта по готовому пресету
+# Сбор контекста проекта по пресету
 sfcp bundle --preset backend --output ai-context.md
 \`\`\``,
   },
@@ -126,16 +126,16 @@ sfcp bundle --preset backend --output ai-context.md
     cta_label: 'Перейти на GitHub',
     cta_url: 'https://github.com/Heysh1n/AHK-Unix',
     github_url: 'https://github.com/Heysh1n/AHK-Unix',
-    markdown_description: `# ⌨️ AHK UNIX (AutoHotKey for Linux)
+    markdown_description: `# AHK UNIX (AutoHotKey for Linux)
 
-AutoHotkey-style text expansion and hotkey engine engineered specifically for Linux systems.
+Text expansion and hotkey engine for Linux modeled after AutoHotKey.
 
-### ⚡ Current State & Architecture
-AHKUnix reads physical keyboard input via the Linux input subsystem (\`evdev\`), parses triggers from \`.ahkl\` scripts, and injects text/keys into the active window using \`uinput\` + native clipboard backends (\`wl-clipboard\`, \`xclip\`).
+### Architecture
+AHKUnix reads physical keyboard events via \`evdev\`, parses \`.ahkl\` trigger rules, and injects text or keystrokes through \`uinput\` with \`wl-clipboard\` and \`xclip\`.
 
-- **Daemon + Controller**: Runs strictly below the X11/Wayland display server layer.
-- **C++20 & Low Latency**: Multithreaded macro execution with zero-race-condition clipboard synchronization.
-- **Configurable Shortcuts**: Support for complex hotstrings, modifier chords, and custom remaps.
+- Runs below X11 and Wayland as a daemon + controller pair.
+- Written in C++20 with multithreaded macro execution and synchronized clipboard access.
+- Supports hotstrings, modifier chords, and custom key remaps.
 
 \`\`\`bash
 # Запуск демона AHK-UNIX
@@ -151,14 +151,11 @@ sudo ahkunixd --config ~/.config/ahk/hotkeys.ahkl
     cta_label: 'Перейти на GitHub',
     cta_url: 'https://github.com/Heysh1n/5whys-architect',
     github_url: 'https://github.com/Heysh1n/5whys-architect',
-    markdown_description: `# 🧠 AI Agent Skill: 5Whys Architect
+    markdown_description: `# AI Agent Skill: 5Whys Architect
 
-A specialized reasoning and root-cause analysis skill designed for autonomous agentic workflows (Codex, Claude Code, Antigravity).
+A root-cause analysis skill for Codex, Claude Code, and Antigravity.
 
-### 🎯 Overview:
-- **Systematic Root-Cause Discovery**: Implements the iterative 5Whys methodology to identify genuine failure causes before drafting solutions.
-- **Defensive Engineering**: Prevents superficial code fixes and architectural regressions.
-- **Multi-Agent Interop**: Optimized for agent role-playing, swarm coordination, and automated code review pipelines.`,
+It walks the agent through five iterative "why" checks before editing code, so fixes target the real cause instead of symptoms. Works for single-agent debugging, swarm reviews, and incident triage.`,
   },
   {
     title: 'Smart File Collector',
@@ -169,13 +166,9 @@ A specialized reasoning and root-cause analysis skill designed for autonomous ag
     cta_label: 'Перейти на GitHub',
     cta_url: 'https://github.com/Heysh1n/sfc',
     github_url: 'https://github.com/Heysh1n/sfc',
-    markdown_description: `# 📦 Smart File Collector (SFC)
+    markdown_description: `# Smart File Collector (SFC)
 
-Lightweight CLI utility on standard Python for extracting project structures, file contents, and generating structured technical briefs for AI assistants.
-
-- **Zero External Dependencies**: Runs anywhere with pure Python 3.
-- **Interactive Tree Navigation**: Fast terminal-based file selection.
-- **Token Optimization**: Strips redundant whitespace and comments to save LLM context window tokens.`,
+Python 3 CLI utility with zero external dependencies. Lets you pick files in an interactive terminal tree, strip extra whitespace or comments, and export a structured code bundle for an AI prompt.`,
   },
 ];
 
@@ -204,8 +197,7 @@ const fallbackSocials: HomePageSocial[] = [
 const fallbackHomePage: HomePageGlobal = {
   name: 'Heysh1n',
   role: 'Backend Engineer',
-  description:
-    'Anonymous backend and systems persona focused on practical tooling, resilient server workflows, Linux-first environments, and hardware-adjacent experiments.',
+  description: 'Backend and Linux systems developer building CLI tools, server infrastructure, and network utilities.',
   discord_id: '995737379417640961',
   discord_username: 'heysh1n',
   discord_tag: 'TR',
@@ -314,7 +306,7 @@ const heroRole = textOrFallback(homePage?.role, fallbackHomePage.role ?? 'Backen
 const heroDesc = textOrFallback(
   homePage?.description,
   fallbackHomePage.description ??
-    'Anonymous backend and systems persona focused on practical tooling, resilient server workflows, Linux-first environments, and hardware-adjacent experiments.',
+    'Backend and Linux systems developer building CLI tools, server infrastructure, and network utilities.',
 );
 
 const projects = fetchedProjects.length > 0 ? fetchedProjects : fallbackProjects;
@@ -467,22 +459,24 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
 };
 ---
 <Layout discordId={discordId}>
-  <main class="max-w-6xl mx-auto w-full px-4 py-4 flex flex-col justify-center items-center">
-    <section class="bento-container w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1.15fr] gap-4 grid-flow-row-dense auto-rows-[minmax(180px,auto)]">
-      <div class="hero_card glassmorphism col-span-1 p-5 h-full flex flex-col justify-between">
+  <main class="workspace-main">
+    <section class="bento-container">
+      <div class="hero_card glassmorphism col-span-1">
         <span class="hero_title">hero.md</span>
-        <span class="hero_item">{heroName}</span>
-        <span class="hero_item mb-3">{heroRole}</span>
-        <button 
-          type="button" 
-          class="w-full text-center py-2 px-4 rounded-lg bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] hover:border-white/20 transition-colors text-sm text-zinc-200 mt-auto cursor-pointer"
+        <div class="hero_identity">
+          <h1 class="hero_name">{heroName}</h1>
+          <p class="hero_role">{heroRole}</p>
+        </div>
+        <button
+          type="button"
+          class="hero_stack_btn"
           data-modal-target="modal-stack"
         >
           [ Open stack.yml ]
         </button>
       </div>
 
-      <div class="env_card glassmorphism col-span-1 lg:col-span-2 py-3 px-4 h-full relative overflow-hidden bg-white/[0.04] backdrop-blur">
+      <div class="env_card glassmorphism col-span-1 lg:col-span-2">
         <DiscordProfileIsland
           client:load
           discordId={discordId}
@@ -492,8 +486,8 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
         />
       </div>
 
-      <div class="player_card glassmorphism col-span-1 row-span-2 lg:row-span-2 lg:col-start-4 h-full flex flex-col justify-between items-center text-center">
-        <div class="player_header w-full">
+      <div class="player_card glassmorphism col-span-1 row-span-2 lg:col-start-4">
+        <div class="player_header">
           <span class="hero_title">player.sh</span>
         </div>
         <MusicWidgetIsland
@@ -502,24 +496,23 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
         />
       </div>
 
-      {/* ── Top Project Cards (in Bento Grid) ── */}
       {topProjects.map((project) => (
         <button
           type="button"
-          class="project_card glassmorphism col-span-1 h-full p-4 flex flex-col justify-between cursor-pointer"
+          class="project_card glassmorphism col-span-1"
           data-modal-target={project.dialogId}
           aria-label={`Открыть проект ${project.title}`}
         >
-          <div class="flex flex-col gap-2 w-full">
+          <div class="project_card_body">
             <div class="project_card_header">
-              <span class="project_title text-lg font-semibold text-white">{project.title}</span>
+              <span class="project_title">{project.title}</span>
               <span class="project_card_indicator" aria-hidden="true" title="Подробнее о проекте">
                 <svg class="indicator_icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </span>
             </div>
-            <p class="project_description line-clamp-3">{project.description}</p>
+            <p class="project_description">{project.description}</p>
           </div>
           {project.status && (
             <div class="project_card_footer">
@@ -532,26 +525,25 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
       ))}
     </section>
 
-    {/* ── Dynamic Flex Container for Remaining Projects (auto-stretch to fill row) ── */}
     {bottomProjects.length > 0 && (
-      <div class="flex flex-col md:flex-row flex-wrap gap-4 w-full mt-4">
+      <section class="projects-overflow-grid" aria-label="Другие проекты">
         {bottomProjects.map((project) => (
           <button
             type="button"
-            class="project_card glassmorphism flex-1 min-w-[300px] w-full p-4 flex flex-col justify-between cursor-pointer"
+            class="project_card glassmorphism"
             data-modal-target={project.dialogId}
             aria-label={`Открыть проект ${project.title}`}
           >
-            <div class="flex flex-col gap-2 w-full">
+            <div class="project_card_body">
               <div class="project_card_header">
-                <span class="project_title text-lg font-semibold text-white">{project.title}</span>
+                <span class="project_title">{project.title}</span>
                 <span class="project_card_indicator" aria-hidden="true" title="Подробнее о проекте">
                   <svg class="indicator_icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M7 17L17 7M17 7H7M17 7V17" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </span>
               </div>
-              <p class="project_description line-clamp-3">{project.description}</p>
+              <p class="project_description">{project.description}</p>
             </div>
             {project.status && (
               <div class="project_card_footer">
@@ -562,13 +554,12 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
             )}
           </button>
         ))}
-      </div>
+      </section>
     )}
 
-    <hr class="social-divider w-full mt-6" />
+    <hr class="social-divider" />
 
-    {/* ── Social Links from HomePage Global ── */}
-    <div class="socials-container flex flex-wrap gap-4 w-full mt-6">
+    <nav class="socials-container" aria-label="Ссылки">
       {socials.map((social) => {
         const meta = getSocialMeta(social.url, social.platform);
         return (
@@ -593,10 +584,9 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
           </a>
         );
       })}
-    </div>
+    </nav>
   </main>
 
-  {/* ── Project Modals (Reusable <ProjectModal /> with native <dialog>) ── */}
   {projectCards.map((project) => (
     <ProjectModal
       id={project.dialogId}
@@ -613,9 +603,8 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
     />
   ))}
 
-  {/* ── Stack Modal (Reusable <ProjectModal />) ── */}
   <ProjectModal id="modal-stack" title="Technology Stack">
-    <div class="modal_body">
+    <div class="modal_body stack_groups">
       {stackGroups.map((group) =>
         group.names.length > 0 && (
           <div class="stack_group">
@@ -631,148 +620,3 @@ const getSocialMeta = (rawUrl: string, explicitPlatform?: string | null) => {
     </div>
   </ProjectModal>
 </Layout>
-
-<style>
-  /* ── Interactive Project Card Styling & Hover Indicator ── */
-  .project_card {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 1rem;
-    cursor: pointer;
-    text-align: left;
-    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-                border-color 0.22s ease,
-                box-shadow 0.22s ease;
-    border: 1px solid rgba(196, 140, 255, 0.35);
-    background: rgba(18, 5, 24, 0.55);
-    border-radius: 14px;
-    width: 100%;
-    height: 100%;
-    color: inherit;
-    position: relative;
-    overflow: clip;
-  }
-
-  .project_card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(196, 140, 255, 0.55);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 20px rgba(168, 85, 247, 0.25);
-  }
-
-  .project_card_header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.5rem;
-    width: 100%;
-  }
-
-  .project_title {
-    font-size: 1.125rem;
-    line-height: 1.4;
-    font-weight: 600;
-    color: #ffffff;
-  }
-
-  .project_card_indicator {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.7rem;
-    height: 1.7rem;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #a1a1aa;
-    flex-shrink: 0;
-    transition: background 0.2s ease, color 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
-  }
-
-  .indicator_icon {
-    width: 0.95rem;
-    height: 0.95rem;
-  }
-
-  .project_card:hover .project_card_indicator {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #f4f4f5;
-    transform: translate(2px, -2px);
-  }
-
-  .project_description {
-    color: #a1a1aa;
-    font-size: clamp(0.82rem, 0.78rem + 0.2vw, 0.9rem);
-    line-height: 1.45;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: clip;
-    text-overflow: ellipsis;
-    overflow-wrap: break-word;
-  }
-
-  .project_card_footer {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.4rem;
-    margin-top: auto;
-    padding-top: 0.25rem;
-  }
-
-  .project_card_tags {
-    display: flex;
-    flex-wrap: wrap;
-    flex-wrap: balance;
-    gap: 0.3rem;
-  }
-
-  .project_card_tag {
-    font-size: 0.7rem;
-    font-weight: 500;
-    padding: 0.15rem 0.45rem;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #a1a1aa;
-    white-space: nowrap;
-  }
-
-  /* ── Stack inside Modal ── */
-  .stack_group {
-    margin-bottom: 1.25rem;
-  }
-
-  .stack_group_label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #a1a1aa;
-    margin-bottom: 0.5rem;
-  }
-
-  .stack_list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  .stack_chip {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #d4d4d8;
-    font-size: 0.78rem;
-    padding: 0.25rem 0.65rem;
-    border-radius: 6px;
-    white-space: nowrap;
-  }
-</style>

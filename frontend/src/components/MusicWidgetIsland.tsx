@@ -35,7 +35,7 @@ const FETCH_TIMEOUT_MS = 6000;
 
 const IDLE_TRACK: TrackData = {
   name: 'Not Playing',
-  artist: 'Spotify — Standby',
+  artist: 'Spotify standby',
   cover: DEFAULT_COVER,
   badge: 'STANDBY',
   isPlaying: false,
@@ -194,7 +194,7 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
         } else if (data && data.isPlaying === false && !data.error) {
           setTrackData((prev) =>
             prev.name !== 'Connecting...'
-              ? { ...IDLE_TRACK, artist: 'Spotify — Paused', previewUrl: data?.previewUrl || null }
+              ? { ...IDLE_TRACK, artist: 'Spotify paused', previewUrl: data?.previewUrl || null }
               : IDLE_TRACK
           );
         } else {
@@ -278,48 +278,36 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
       ? Math.min(100, Math.max(0, (trackData.progressMs / trackData.durationMs) * 100))
       : null;
 
+  const previewLabel = !hasPreview
+    ? 'Preview unavailable for this track'
+    : isAudioPlaying
+      ? 'Pause 30s preview'
+      : 'Play 30s preview';
+
+  const volumeLabel = !hasPreview
+    ? 'Preview unavailable for this track'
+    : isAudioPlaying
+      ? 'Mute preview'
+      : 'Play 30s preview';
+
+  const restartLabel = hasPreview ? 'Restart 30s preview' : 'Preview unavailable for this track';
+
   return (
-    <div
-      className="player_card_inner h-full w-full flex-1 flex flex-col justify-between items-center text-center relative"
-    >
-      {/* ── Top Zone: Album cover artwork, track title, and artist name ── */}
+    <div className="player_card_inner">
       <div className="player_zone_top">
         <button
           type="button"
           onClick={toggleAudio}
           disabled={!hasPreview}
           className="volume_btn"
-          title={
-            !hasPreview
-              ? 'Preview unavailable for this track'
-              : isAudioPlaying
-                ? 'Выключить звук превью'
-                : 'Слушать 30-сек превью трека'
-          }
-          aria-label={
-            !hasPreview
-              ? 'Preview unavailable for this track'
-              : isAudioPlaying
-                ? 'Выключить звук превью'
-                : 'Слушать 30-сек превью трека'
-          }
-          style={{
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            opacity: hasPreview ? (isAudioPlaying ? 1 : 0.75) : 0.35,
-            cursor: hasPreview ? 'pointer' : 'not-allowed',
-            transition: 'opacity 0.2s ease, transform 0.2s ease',
-            background: 'none',
-            border: 'none',
-            padding: '0.2rem',
-          }}
+          data-active={isAudioPlaying ? 'true' : 'false'}
+          title={volumeLabel}
+          aria-label={volumeLabel}
         >
           <img
             src={isAudioPlaying ? '/assets/svg/v_max.svg' : '/assets/svg/v_off.svg'}
-            alt={isAudioPlaying ? 'Volume Active' : 'Volume Mute'}
-            className="svg hero_volume-image"
-            style={{ width: '1.35rem', height: '1.35rem' }}
+            alt={isAudioPlaying ? 'Volume active' : 'Volume muted'}
+            className="hero_volume-image"
           />
         </button>
 
@@ -328,13 +316,8 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
           target={trackData.url ? '_blank' : undefined}
           rel={trackData.url ? 'noopener noreferrer' : undefined}
           className="player_cover_link"
-          title={trackData.url ? `Открыть «${trackData.name}» в Spotify` : `${trackData.name} — ${trackData.artist}`}
-          style={{
-            cursor: trackData.url ? 'pointer' : 'default',
-            display: 'block',
-            margin: '0 auto 0.6rem',
-            textDecoration: 'none',
-          }}
+          data-clickable={trackData.url ? 'true' : 'false'}
+          title={trackData.url ? `Open "${trackData.name}" on Spotify` : `${trackData.name}, ${trackData.artist}`}
           onClick={(e) => {
             if (!trackData.url) e.preventDefault();
           }}
@@ -349,80 +332,21 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
           />
         </a>
 
-        <div
-          className="player_meta"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            width: '100%',
-            gap: '0.15rem',
-          }}
-        >
-          <span
-            className="player_title"
-            title={trackData.name}
-            style={{
-              fontSize: '1.05rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              maxWidth: '240px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              textShadow: '0 0 10px rgba(196, 140, 255, 0.4)',
-            }}
-          >
+        <div className="player_meta">
+          <span className="player_title" title={trackData.name}>
             {trackData.name}
           </span>
-          <span
-            className="player_artist"
-            title={trackData.artist}
-            style={{
-              fontSize: '0.82rem',
-              color: '#C48CFF',
-              opacity: 0.85,
-              maxWidth: '240px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
+          <span className="player_artist" title={trackData.artist}>
             {trackData.artist}
           </span>
         </div>
       </div>
 
-      {/* ── Middle Zone: Audio visualizer / status indicator, progress bar with timestamps, and controls ── */}
       <div className="player_zone_middle">
-        <div className="player_status_row" style={{ margin: '0.1rem 0' }}>
+        <div className="player_status_row">
           {trackData.isPlaying || isAudioPlaying ? (
-            <span
-              className="player_status_badge player_status_live"
-              style={{
-                color: '#4ade80',
-                background: 'rgba(34, 197, 94, 0.12)',
-                border: '1px solid rgba(74, 222, 128, 0.35)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '0.68rem',
-                fontWeight: 600,
-                letterSpacing: '0.06em',
-                padding: '0.2rem 0.65rem',
-                borderRadius: '9999px',
-                boxShadow: '0 0 10px rgba(74, 222, 128, 0.2)',
-              }}
-            >
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'flex-end',
-                  gap: '2px',
-                  height: '10px',
-                }}
-                aria-hidden="true"
-              >
+            <span className="player_status_badge player_status_live">
+              <span className="player_visualizer" aria-hidden="true">
                 <span className="visualizer_bar bar_1" />
                 <span className="visualizer_bar bar_2" />
                 <span className="visualizer_bar bar_3" />
@@ -430,225 +354,81 @@ export default function MusicWidgetIsland({ backendUrl }: MusicWidgetIslandProps
               {isAudioPlaying && !trackData.isPlaying ? 'PREVIEW PLAYING' : trackData.badge}
             </span>
           ) : (
-            <span
-              className="player_status_badge"
-              style={{
-                color: '#a1a1aa',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                fontSize: '0.68rem',
-                fontWeight: 500,
-                letterSpacing: '0.05em',
-                padding: '0.2rem 0.65rem',
-                borderRadius: '9999px',
-              }}
-            >
-              <span
-                style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  backgroundColor: '#71717a',
-                }}
-              />
+            <span className="player_status_badge">
+              <span className="player_status_dot" aria-hidden="true" />
               {trackData.badge}
             </span>
           )}
         </div>
 
-        {/* Dynamic Progress Bar with elapsed / total duration */}
         {progressPercent != null ? (
-          <div
-            style={{
-              width: '100%',
-              maxWidth: '240px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.25rem',
-              margin: '0.15rem 0',
-            }}
-          >
-            <div
-              style={{
-                width: '100%',
-                height: '3px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: '9999px',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  width: `${progressPercent}%`,
-                  height: '100%',
-                  background: 'linear-gradient(90deg, #a855f7, #c084fc)',
-                  borderRadius: '9999px',
-                  transition: 'width 0.3s ease',
-                  boxShadow: '0 0 8px rgba(168, 85, 247, 0.4)',
-                }}
-              />
+          <div className="player_progress_wrap">
+            <div className="player_progress_track">
+              <div className="player_progress_fill" style={{ width: `${progressPercent}%` }} />
             </div>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '0.7rem',
-                color: '#a1a1aa',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
+            <div className="player_progress_times">
               <span>{formatTime(trackData.progressMs)}</span>
               <span>{formatTime(trackData.durationMs)}</span>
             </div>
           </div>
         ) : (
-          <div style={{ width: '100%', maxWidth: '240px', margin: '0.15rem 0' }}>
+          <div className="player_timeline_wrap">
             <img
               src="/assets/svg/line+timestamp.svg"
               alt=""
-              className="svg player_timeline"
-              style={{ width: '100%', opacity: 0.5 }}
+              aria-hidden="true"
+              className="player_timeline"
             />
           </div>
         )}
 
-        {/* Playback Controls */}
-        <div className="player_ui" style={{ marginTop: '0.2rem' }}>
-          <div
-            className="player_controls"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '1.25rem',
-            }}
-          >
+        <div className="player_ui">
+          <div className="player_controls">
             <button
               type="button"
               className="player_control_btn"
-              aria-label="Restart track"
+              aria-label={restartLabel}
               onClick={restartTrack}
               disabled={!hasPreview}
-              title={hasPreview ? 'Перезапустить 30-сек превью' : 'Preview unavailable for this track'}
-              style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(196, 140, 255, 0.2)',
-                borderRadius: '8px',
-                padding: '0.45rem',
-                cursor: hasPreview ? 'pointer' : 'not-allowed',
-                opacity: hasPreview ? 0.85 : 0.35,
-                transition: 'opacity 0.2s ease, background 0.2s ease, transform 0.15s ease',
-              }}
+              title={restartLabel}
             >
-              <img src="/assets/svg/s_back.svg" alt="back" className="svg" style={{ width: '14px', height: '14px' }} />
+              <img src="/assets/svg/s_back.svg" alt="" aria-hidden="true" className="player_control_icon" />
             </button>
 
             <button
               type="button"
-              className="player_control_btn"
+              className="player_control_btn player_control_btn_primary"
+              data-playing={isAudioPlaying ? 'true' : 'false'}
               onClick={toggleAudio}
               disabled={!hasPreview}
-              aria-label={
-                !hasPreview
-                  ? 'Preview unavailable for this track'
-                  : isAudioPlaying
-                    ? 'Пауза'
-                    : 'Воспроизведение 30-сек превью'
-              }
-              title={
-                !hasPreview
-                  ? 'Preview unavailable for this track'
-                  : isAudioPlaying
-                    ? 'Пауза'
-                    : 'Слушать 30-сек превью'
-              }
-              style={{
-                background: hasPreview
-                  ? isAudioPlaying
-                    ? 'rgba(168, 85, 247, 0.25)'
-                    : 'rgba(168, 85, 247, 0.15)'
-                  : 'rgba(255, 255, 255, 0.04)',
-                border: hasPreview
-                  ? isAudioPlaying
-                    ? '1px solid rgba(196, 140, 255, 0.6)'
-                    : '1px solid rgba(196, 140, 255, 0.4)'
-                  : '1px solid rgba(255, 255, 255, 0.08)',
-                boxShadow: hasPreview && isAudioPlaying
-                  ? '0 0 16px rgba(168, 85, 247, 0.45)'
-                  : hasPreview
-                    ? '0 0 12px rgba(168, 85, 247, 0.25)'
-                    : 'none',
-                borderRadius: '50%',
-                padding: '0.65rem',
-                cursor: hasPreview ? 'pointer' : 'not-allowed',
-                opacity: hasPreview ? 1 : 0.35,
-                transition: 'transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease',
-              }}
+              aria-label={previewLabel}
+              title={previewLabel}
             >
               <img
                 src={isAudioPlaying ? '/assets/svg/pause.svg' : '/assets/svg/play.svg'}
-                alt={isAudioPlaying ? 'pause' : 'play'}
-                className="svg"
-                style={{ width: '16px', height: '16px' }}
+                alt=""
+                aria-hidden="true"
+                className="player_control_icon_primary"
               />
             </button>
 
             <button
               type="button"
               className="player_control_btn"
-              aria-label="Next track"
+              aria-label={restartLabel}
               onClick={restartTrack}
               disabled={!hasPreview}
-              title={hasPreview ? 'Перезапустить 30-сек превью' : 'Preview unavailable for this track'}
-              style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(196, 140, 255, 0.2)',
-                borderRadius: '8px',
-                padding: '0.45rem',
-                cursor: hasPreview ? 'pointer' : 'not-allowed',
-                opacity: hasPreview ? 0.85 : 0.35,
-                transition: 'opacity 0.2s ease, background 0.2s ease, transform 0.15s ease',
-              }}
+              title={restartLabel}
             >
-              <img src="/assets/svg/s_forward.svg" alt="forward" className="svg" style={{ width: '14px', height: '14px' }} />
+              <img src="/assets/svg/s_forward.svg" alt="" aria-hidden="true" className="player_control_icon" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── Bottom Zone: Source prefix badge (● SPOTIFY) ── */}
       <div className="player_zone_bottom">
-        <span
-          className="player_source_badge"
-          style={{
-            background: 'rgba(18, 5, 24, 0.55)',
-            border: '1px solid rgba(196, 140, 255, 0.25)',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)',
-            color: '#e4e4e7',
-            padding: '0.22rem 0.65rem',
-            borderRadius: '9999px',
-            fontSize: '0.68rem',
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            textTransform: 'uppercase',
-          }}
-        >
-          <span
-            style={{
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              backgroundColor: '#1ed760',
-              boxShadow: trackData.isPlaying ? '0 0 8px rgba(30, 215, 96, 0.8)' : 'none',
-              animation: trackData.isPlaying ? 'pulse-dot 2s infinite' : 'none',
-            }}
-          />
+        <span className="player_source_badge">
+          <span className="player_source_dot" data-live={trackData.isPlaying ? 'true' : 'false'} aria-hidden="true" />
           SPOTIFY
         </span>
       </div>

@@ -99,45 +99,50 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     <dialog
       ref={dialogRef}
       id={id}
-      className="modal glassmorphism"
+      className="modal"
       aria-labelledby={`${id}-title`}
       {...({ closedby: 'any' } as any)}
     >
+      <button
+        type="button"
+        className="modal_close"
+        onClick={() => {
+          dialogRef.current?.close();
+          onClose?.();
+        }}
+        data-modal-close
+        aria-label={`Закрыть ${title}`}
+      >
+        <svg className="modal_close_icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
       <div className="modal_inner">
         <div className="modal_header">
           <div className="modal_header_info">
             <h2 id={`${id}-title`} className="modal_title">
               {title}
             </h2>
-            <div className="modal_meta_row">
-              {status && (
-                <span className="project_status" data-status={statusCode || ''}>
-                  {status}
-                </span>
-              )}
-              {tagsList.length > 0 && (
-                <div className="modal_tags">
-                  {tagsList.map((tag, idx) => (
-                    <span key={idx} className="modal_tag">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+            {(status || tagsList.length > 0) && (
+              <div className="modal_meta_row">
+                {status && (
+                  <span className="project_status" data-status={statusCode || ''}>
+                    {status}
+                  </span>
+                )}
+                {tagsList.length > 0 && (
+                  <div className="modal_tags">
+                    {tagsList.map((tag, idx) => (
+                      <span key={idx} className="modal_tag">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <button
-            type="button"
-            className="modal_close"
-            onClick={() => {
-              dialogRef.current?.close();
-              onClose?.();
-            }}
-            data-modal-close
-            aria-label={`Закрыть ${title}`}
-          >
-            ✕
-          </button>
         </div>
 
         {description && <p className="modal_description">{description}</p>}
